@@ -10,6 +10,12 @@ class BootReceiver : BroadcastReceiver() {
             intent.action == "android.intent.action.QUICKBOOT_POWERON"
         ) {
             ForegroundWatchService.start(context)
+            if (DataSyncManager.getCashReminderEnabled()) {
+                val timeParts = DataSyncManager.getCashReminderTime().split(":")
+                val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 21
+                val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
+                DailyCashReminderReceiver.schedule(context, hour, minute)
+            }
         }
     }
 }

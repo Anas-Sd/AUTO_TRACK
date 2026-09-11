@@ -274,6 +274,8 @@ export default function TransactionModal({
                     { value: "Google Pay", label: "Google Pay" },
                     { value: "PhonePe", label: "PhonePe" },
                     { value: "Paytm", label: "Paytm" },
+                    { value: "Navi UPI", label: "Navi UPI" },
+                    { value: "super.money", label: "super.money" },
                     { value: "HDFC Bank", label: "HDFC Bank" },
                     { value: "ICICI Bank", label: "ICICI Bank" },
                     { value: "SBI", label: "SBI" },

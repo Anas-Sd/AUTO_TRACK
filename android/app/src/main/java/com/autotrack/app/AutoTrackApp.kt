@@ -23,6 +23,8 @@ class AutoTrackApp : Application() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.notification_channel_name),
@@ -31,8 +33,16 @@ class AutoTrackApp : Application() {
                 description = getString(R.string.notification_channel_desc)
                 setShowBadge(false)
             }
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
+
+            val reminderChannel = NotificationChannel(
+                DailyCashReminderReceiver.CHANNEL_ID,
+                "Daily Cash Reminders",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Reminds you to log daily cash transactions"
+            }
+            manager.createNotificationChannel(reminderChannel)
         }
     }
 }

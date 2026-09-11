@@ -97,12 +97,29 @@ object DataSyncManager {
                 "com.phonepe.app",                       // PhonePe
                 "net.one97.paytm",                       // Paytm
                 "in.org.npci.upiapp",                    // BHIM
+                "com.navi.navihealth",                   // Navi UPI
+                "com.navi.app",                          // Navi App
+                "com.super.money",                       // super.money
+                "com.supermoney.app",                    // super.money app
                 "com.hdfcbank.payzapp",                  // HDFC
                 "com.csam.icici.bank.imobile",          // ICICI
                 "com.sbi.lotusintouch",                  // SBI
-                "com.axis.mobile"                        // Axis
+                "com.axis.mobile",                       // Axis
+                "com.google.android.apps.messaging",     // Google Messages
+                "com.samsung.android.messaging",         // Samsung Messages
+                "com.android.mms"                        // Default SMS
             )
             setAllowedPackages(defaults)
+        }
+
+        // Enable Cash Reminder by default if not set
+        if (!prefs.contains(KEY_CASH_REMINDER_ENABLED)) {
+            setCashReminderEnabled(context, true)
+        } else if (getCashReminderEnabled()) {
+            val timeParts = getCashReminderTime().split(":")
+            val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 21
+            val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
+            DailyCashReminderReceiver.schedule(context, hour, minute)
         }
     }
 
@@ -294,7 +311,6 @@ object DataSyncManager {
         rawNotification: String?
     ): Boolean = withContext(Dispatchers.IO) {
         val vault = getVaultCode() ?: return@withContext false
-        val token = getSessionToken()
 
         val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
@@ -303,7 +319,6 @@ object DataSyncManager {
 
         val payload = JSONObject().apply {
             put("vault_code", vault)
-            put("title", if (vendor.isNullOrBlank()) (if (type == "income") "Income" else "Payment") else vendor)
             put("amount", amount)
             put("type", type)
             if (!categoryId.isNullOrBlank()) put("category_id", categoryId)
@@ -324,12 +339,10 @@ object DataSyncManager {
         val reqBuilder = Request.Builder()
             .url(url)
             .addHeader("apikey", SUPABASE_ANON_KEY)
+            .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+            .addHeader("Content-Type", "application/json")
             .addHeader("Prefer", "return=minimal")
             .post(payload.toString().toRequestBody(jsonMedia))
-
-        if (!token.isNullOrEmpty()) {
-            reqBuilder.addHeader("Authorization", "Bearer $token")
-        }
 
         try {
             val res = client.newCall(reqBuilder.build()).execute()
@@ -350,7 +363,6 @@ object DataSyncManager {
 
     fun flushOfflineQueue(context: Context) {
         if (!isOnline(context)) return
-        val token = getSessionToken()
 
         CoroutineScope(Dispatchers.IO).launch {
             val pending = dbHelper.getPendingTransactions()
@@ -360,11 +372,10 @@ object DataSyncManager {
                     val reqBuilder = Request.Builder()
                         .url(url)
                         .addHeader("apikey", SUPABASE_ANON_KEY)
+                        .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                        .addHeader("Content-Type", "application/json")
+                        .addHeader("Prefer", "return=minimal")
                         .post(payload.toString().toRequestBody(jsonMedia))
-
-                    if (!token.isNullOrEmpty()) {
-                        reqBuilder.addHeader("Authorization", "Bearer $token")
-                    }
 
                     val res = client.newCall(reqBuilder.build()).execute()
                     if (res.isSuccessful) {
