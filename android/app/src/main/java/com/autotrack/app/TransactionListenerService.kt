@@ -7,7 +7,11 @@ import android.os.Handler
 import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.widget.Toast
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class TransactionListenerService : NotificationListenerService() {
 
@@ -61,7 +65,7 @@ class TransactionListenerService : NotificationListenerService() {
         val parsed = TransactionParser.parse(fullText, packageName) ?: return
 
         // 5. AUTO-SAVE TRANSACTION TO SUPABASE IMMEDIATELY
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             DataSyncManager.saveTransaction(
                 context = applicationContext,
                 amount = parsed.amount,
@@ -77,7 +81,7 @@ class TransactionListenerService : NotificationListenerService() {
         // 6. Show Toast & Trigger Overlay Popup Window over current app
         Handler(Looper.getMainLooper()).post {
             val toastMsg = "⚡ AutoTrack: Caught ${if (parsed.type == "income") "+" else "-"}₹${parsed.amount} (${parsed.sourceApp})"
-            android.widget.Toast.makeText(applicationContext, toastMsg, android.widget.Toast.LENGTH_LONG).show()
+            Toast.makeText(applicationContext, toastMsg, Toast.LENGTH_LONG).show()
 
             OverlayManager.show(applicationContext, parsed)
         }
