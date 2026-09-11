@@ -30,7 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
     // Deployed web app URL or local development server
-    private var webAppUrl = "http://10.224.180.119:3000"
+    private var webAppUrl = "https://autotrackx.vercel.app"
 
     private var isPendingLogCash = false
 
