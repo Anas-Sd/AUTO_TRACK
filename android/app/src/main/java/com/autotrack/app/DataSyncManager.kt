@@ -159,39 +159,38 @@ object DataSyncManager {
         prefs.edit().putString(KEY_CACHED_CATEGORIES, categoriesJson).apply()
     }
 
-    suspend fun createVault(): String? = withContext(Dispatchers.IO) {
+    suspend fun createVault(label: String = "My Vault"): String? = withContext(Dispatchers.IO) {
         try {
-            // Generate random 8-character uppercase code
             val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
             val sb = StringBuilder()
             for (i in 0 until 8) {
                 sb.append(chars[(Math.random() * chars.length).toInt()])
             }
             val code = sb.toString()
+            val vaultLabel = if (label.trim().isNotEmpty()) label.trim() else "My Vault"
 
-            // Edge function URL or Supabase REST insert using anon/service key
-            val url = "$SUPABASE_URL/functions/v1/create-vault"
+            val url = "$SUPABASE_URL/rest/v1/vault_codes"
+            val payload = JSONObject().apply {
+                put("code", code)
+                put("label", vaultLabel)
+            }
             val req = Request.Builder()
                 .url(url)
                 .addHeader("apikey", SUPABASE_ANON_KEY)
-                .post("{}".toRequestBody(jsonMedia))
+                .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=representation")
+                .post(payload.toString().toRequestBody(jsonMedia))
                 .build()
 
-            var generatedCode = code
-            val response = client.newCall(req).execute()
-            if (response.isSuccessful) {
-                val bodyStr = response.body?.string()
-                if (!bodyStr.isNullOrEmpty()) {
-                    val json = JSONObject(bodyStr)
-                    generatedCode = json.optString("code", code)
-                }
-            }
+            client.newCall(req).execute()
 
-            saveVaultCode(generatedCode)
-            issueVaultSession(generatedCode)
-            generatedCode
+            seedDefaultCategories(code)
+
+            saveVaultCode(code)
+            issueVaultSession(code)
+            code
         } catch (e: Exception) {
-            // Fallback: store locally generated code
             val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
             val sb = StringBuilder()
             for (i in 0 until 8) sb.append(chars[(Math.random() * chars.length).toInt()])
@@ -199,6 +198,37 @@ object DataSyncManager {
             saveVaultCode(fallbackCode)
             issueVaultSession(fallbackCode)
             fallbackCode
+        }
+    }
+
+    private fun seedDefaultCategories(vaultCode: String) {
+        try {
+            val defaultCats = listOf(
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Food & Dining"); put("icon", "🍔"); put("color", "#F59E0B"); put("monthly_cap", 10000) },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Shopping"); put("icon", "🛍️"); put("color", "#EC4899"); put("monthly_cap", 8000) },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Bills & Utilities"); put("icon", "⚡"); put("color", "#3B82F6"); put("monthly_cap", 5000) },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Transportation"); put("icon", "🚗"); put("color", "#10B981"); put("monthly_cap", 4000) },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Entertainment"); put("icon", "🎬"); put("color", "#8B5CF6"); put("monthly_cap", 3000) },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Health & Care"); put("icon", "💊"); put("color", "#EF4444"); put("monthly_cap", 5000) },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Salary & Income"); put("icon", "💰"); put("color", "#10B981") },
+                JSONObject().apply { put("vault_code", vaultCode); put("name", "Investments"); put("icon", "📈"); put("color", "#06B6D4") }
+            )
+
+            val array = JSONArray()
+            defaultCats.forEach { array.put(it) }
+
+            val url = "$SUPABASE_URL/rest/v1/categories"
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_ANON_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                .addHeader("Content-Type", "application/json")
+                .post(array.toString().toRequestBody(jsonMedia))
+                .build()
+
+            client.newCall(req).execute()
+        } catch (e: Exception) {
+            // ignore
         }
     }
 

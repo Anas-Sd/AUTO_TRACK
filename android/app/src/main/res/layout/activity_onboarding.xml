@@ -12,14 +12,34 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <!-- Header -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- App Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Welcome to Auto Track"
-            android:textColor="@color/text_white"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Welcome to Auto Track"
+                android:textColor="@color/text_white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvStepIndicator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_border"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="STEP 1 / 2"
+                android:textColor="@color/accent_mint"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
@@ -29,231 +49,357 @@
             android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
-        <!-- Vault Code Card -->
-        <androidx.cardview.widget.CardView
+        <!-- STEP 1 CONTAINER: User Name & System Permissions -->
+        <LinearLayout
+            android:id="@+id/layoutStep1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            app:cardBackgroundColor="@color/card_dark"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp">
+            android:orientation="vertical"
+            android:visibility="visible">
 
+            <!-- Name Input Card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                app:cardBackgroundColor="@color/card_dark"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="YOUR PROFILE NAME"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etUserName"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_card_border"
+                        android:hint="Enter your name (e.g. ANAS)"
+                        android:inputType="textPersonName|textCapWords"
+                        android:paddingHorizontal="14dp"
+                        android:textColor="@color/text_white"
+                        android:textColorHint="@color/text_muted"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Permissions Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="REQUIRED SYSTEM PERMISSIONS"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="All required permissions must be granted to generate your vault."
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+
+            <!-- 1. Notification Access -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card_border"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="YOUR PRIVATE VAULT CODE"
-                    android:textColor="@color/text_muted"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <TextView
-                    android:id="@+id/tvVaultCode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:fontFamily="monospace"
-                    android:text="GENERATING..."
-                    android:textColor="@color/accent_mint"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Save this code! Use it to log into the web dashboard from your laptop."
-                    android:textColor="@color/text_muted"
-                    android:textSize="12sp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1. Notification Access"
+                            android:textColor="@color/text_white"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
 
-                <Button
-                    android:id="@+id/btnCopyCode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/card_border"
-                    android:text="Copy Code"
-                    android:textColor="@color/text_white"
-                    android:textSize="12sp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Detects payments from UPI &amp; Bank apps instantly"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnGrantNotif"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="@color/accent_mint"
+                        android:text="Grant"
+                        android:textColor="@color/bg_dark"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
 
-        <!-- Permissions Section -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="REQUIRED SYSTEM PERMISSIONS"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <!-- 1. Notification Access -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_card_border"
-            android:orientation="vertical"
-            android:padding="14dp">
-
+            <!-- 2. Draw Over Other Apps -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card_border"
+                android:orientation="vertical"
+                android:padding="14dp">
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="2. Draw Over Other Apps"
+                            android:textColor="@color/text_white"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Pops confirmation card over payment app"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnGrantOverlay"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="@color/accent_mint"
+                        android:text="Grant"
+                        android:textColor="@color/bg_dark"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 3. Battery Optimization -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card_border"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="3. Battery Optimization"
+                            android:textColor="@color/text_white"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Ensures background service survives OEM killers"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnGrantBattery"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:backgroundTint="@color/accent_mint"
+                        android:text="Disable"
+                        android:textColor="@color/bg_dark"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Next Step Button (Disabled until permissions + name entered) -->
+            <Button
+                android:id="@+id/btnContinueToStep2"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="24dp"
+                android:backgroundTint="@color/accent_mint"
+                android:enabled="false"
+                android:text="Grant Permissions &amp; Continue →"
+                android:textColor="@color/bg_dark"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- STEP 2 CONTAINER: Generate Vault Code -->
+        <LinearLayout
+            android:id="@+id/layoutStep2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Generate Vault Action Card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                app:cardBackgroundColor="@color/card_dark"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
 
                     <TextView
+                        android:id="@+id/tvWelcomeUser"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="1. Notification Access"
+                        android:text="Hello! Ready to create your Vault Code."
                         android:textColor="@color/text_white"
-                        android:textSize="14sp"
+                        android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Detects payments from UPI &amp; Bank apps instantly"
+                        android:layout_marginTop="4dp"
+                        android:text="Click below to generate and register your unique 8-character Vault Code in Supabase."
                         android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
+                        android:textSize="12sp" />
+
+                    <Button
+                        android:id="@+id/btnGenerateVault"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="16dp"
+                        android:backgroundTint="@color/accent_mint"
+                        android:text="Enable &amp; Save Vault Code"
+                        android:textColor="@color/bg_dark"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
+            </androidx.cardview.widget.CardView>
 
-                <Button
-                    android:id="@+id/btnGrantNotif"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:backgroundTint="@color/accent_mint"
-                    android:text="Grant"
-                    android:textColor="@color/bg_dark"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- 2. Draw Over Other Apps -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_card_border"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <LinearLayout
+            <!-- Generated Vault Display Card -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardVaultResult"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:layout_marginTop="16dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/card_dark"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp">
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="2. Draw Over Other Apps"
-                        android:textColor="@color/text_white"
-                        android:textSize="14sp"
+                        android:text="YOUR PRIVATE VAULT CODE"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvVaultCode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:fontFamily="monospace"
+                        android:text="-------"
+                        android:textColor="@color/accent_mint"
+                        android:textSize="26sp"
                         android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Pops confirmation card over payment app"
+                        android:layout_marginTop="4dp"
+                        android:text="Save this code! Use it to log into the web dashboard from your laptop."
                         android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                        android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/btnGrantOverlay"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:backgroundTint="@color/accent_mint"
-                    android:text="Grant"
-                    android:textColor="@color/bg_dark"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- 3. Battery Exemption -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_card_border"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
+                    <Button
+                        android:id="@+id/btnCopyCode"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="3. Battery Optimization"
+                        android:layout_marginTop="12dp"
+                        android:backgroundTint="@color/card_border"
+                        android:text="Copy Code"
                         android:textColor="@color/text_white"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Ensures background service survives OEM killers"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
+                        android:textSize="12sp" />
                 </LinearLayout>
+            </androidx.cardview.widget.CardView>
 
-                <Button
-                    android:id="@+id/btnGrantBattery"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:backgroundTint="@color/accent_mint"
-                    android:text="Disable"
-                    android:textColor="@color/bg_dark"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+            <!-- Final Launch Button -->
+            <Button
+                android:id="@+id/btnEnterApp"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="24dp"
+                android:backgroundTint="@color/accent_mint"
+                android:enabled="false"
+                android:text="Confirm &amp; Unlock Dashboard →"
+                android:textColor="@color/bg_dark"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
         </LinearLayout>
-
-        <!-- Finish / Enter App Button -->
-        <Button
-            android:id="@+id/btnEnterApp"
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="28dp"
-            android:backgroundTint="@color/accent_mint"
-            android:text="Launch Auto Track Dashboard"
-            android:textColor="@color/bg_dark"
-            android:textSize="14sp"
-            android:textStyle="bold" />
 
     </LinearLayout>
 </ScrollView>

@@ -30,8 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
     // Deployed web app URL or local development server
-    // Change this to your Vercel deployment URL or local IP:3000
-    private var webAppUrl = "https://auto-track-web.vercel.app"
+    private var webAppUrl = "http://10.224.180.119:3000"
 
     private var isPendingLogCash = false
 

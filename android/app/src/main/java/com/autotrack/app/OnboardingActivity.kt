@@ -9,6 +9,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
@@ -21,32 +24,23 @@ import kotlinx.coroutines.withContext
 class OnboardingActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityOnboardingBinding
+    private var generatedCode: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val existingVault = DataSyncManager.getVaultCode()
-        if (existingVault.isNullOrEmpty()) {
-            CoroutineScope(Dispatchers.IO).launch {
-                val code = DataSyncManager.createVault()
-                withContext(Dispatchers.Main) {
-                    binding.tvVaultCode.text = code ?: "ERROR-RETRY"
-                }
+        // 1. TextWatcher for Name input
+        binding.etUserName.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                checkPermissionAndFormStatus()
             }
-        } else {
-            binding.tvVaultCode.text = existingVault
-        }
+            override fun afterTextChanged(s: Editable?) {}
+        })
 
-        binding.btnCopyCode.setOnClickListener {
-            val code = binding.tvVaultCode.text.toString()
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("AutoTrack Vault Code", code)
-            clipboard.setPrimaryClip(clip)
-            Toast.makeText(this, "Vault code copied to clipboard", Toast.LENGTH_SHORT).show()
-        }
-
+        // 2. Permission Buttons
         binding.btnGrantNotif.setOnClickListener {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
@@ -75,7 +69,53 @@ class OnboardingActivity : AppCompatActivity() {
             }
         }
 
+        // 3. Step 1 -> Step 2 transition
+        binding.btnContinueToStep2.setOnClickListener {
+            val userName = binding.etUserName.text.toString().trim()
+            if (userName.isEmpty()) {
+                Toast.makeText(this, "Please enter your name to continue", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            binding.layoutStep1.visibility = View.GONE
+            binding.layoutStep2.visibility = View.VISIBLE
+            binding.tvStepIndicator.text = "STEP 2 / 2"
+            binding.tvWelcomeUser.text = "Hello $userName! Ready to create your Vault Code."
+        }
+
+        // 4. Step 2: Generate & Register Vault Code in Supabase
+        binding.btnGenerateVault.setOnClickListener {
+            val userName = binding.etUserName.text.toString().trim()
+            binding.btnGenerateVault.isEnabled = false
+            binding.btnGenerateVault.text = "Creating Vault..."
+
+            CoroutineScope(Dispatchers.IO).launch {
+                val code = DataSyncManager.createVault(userName)
+                withContext(Dispatchers.Main) {
+                    generatedCode = code
+                    binding.btnGenerateVault.visibility = View.GONE
+                    binding.cardVaultResult.visibility = View.VISIBLE
+                    binding.tvVaultCode.text = code ?: "ERROR-RETRY"
+                    binding.btnEnterApp.isEnabled = true
+                }
+            }
+        }
+
+        // 5. Copy Vault Code
+        binding.btnCopyCode.setOnClickListener {
+            val code = binding.tvVaultCode.text.toString()
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("AutoTrack Vault Code", code)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "Vault code copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
+
+        // 6. Confirm & Enter Dashboard
         binding.btnEnterApp.setOnClickListener {
+            val code = generatedCode ?: binding.tvVaultCode.text.toString()
+            if (!code.isNullOrEmpty() && code != "-------") {
+                DataSyncManager.saveVaultCode(code)
+            }
             val intent = Intent(this, MainActivity::class.java)
             startActivity(intent)
             finish()
@@ -84,10 +124,10 @@ class OnboardingActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        updatePermissionStatuses()
+        checkPermissionAndFormStatus()
     }
 
-    private fun updatePermissionStatuses() {
+    private fun checkPermissionAndFormStatus() {
         // 1. Notification Listener Status
         val notifGranted = isNotificationListenerGranted()
         binding.btnGrantNotif.text = if (notifGranted) "Granted ✓" else "Grant"
@@ -111,6 +151,17 @@ class OnboardingActivity : AppCompatActivity() {
         }
         binding.btnGrantBattery.text = if (batteryIgnored) "Disabled ✓" else "Disable"
         binding.btnGrantBattery.isEnabled = !batteryIgnored
+
+        // Enable Step 1 -> Step 2 button ONLY when permissions are accepted AND name is non-empty
+        val userName = binding.etUserName.text.toString().trim()
+        val canProceed = notifGranted && overlayGranted && userName.isNotEmpty()
+
+        binding.btnContinueToStep2.isEnabled = canProceed
+        if (canProceed) {
+            binding.btnContinueToStep2.alpha = 1.0f
+        } else {
+            binding.btnContinueToStep2.alpha = 0.5f
+        }
     }
 
     private fun isNotificationListenerGranted(): Boolean {
