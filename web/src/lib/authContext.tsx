@@ -53,16 +53,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const prevCatsRef = useRef<string>("");
   const prevTxnsRef = useRef<string>("");
 
-  // Initialize session from cookie or local storage
+  // Initialize session from cookie, AndroidBridge, or local storage
   useEffect(() => {
     async function initSession() {
       try {
+        // 0. Check native AndroidBridge vault code first if inside Android APK
+        if (typeof window !== "undefined" && (window as any).AndroidBridge?.getVaultCode) {
+          const nativeCode = (window as any).AndroidBridge.getVaultCode();
+          if (nativeCode && nativeCode.length > 0) {
+            const loginRes = await loginVault(nativeCode);
+            if (loginRes.success) {
+              setLoading(false);
+              return;
+            }
+          }
+        }
+
         const res = await fetch("/api/vault-session");
         const data = await res.json();
         if (data.authenticated && data.vault_code && data.token) {
           setVaultCode(data.vault_code);
           setToken(data.token);
           if (data.label) setVaultLabel(data.label);
+          if (typeof window !== "undefined" && (window as any).AndroidBridge?.setVaultCode) {
+            (window as any).AndroidBridge.setVaultCode(data.vault_code);
+          }
           setLoading(false);
           return;
         }
@@ -102,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const catData: Category[] = catJson.data || [];
       const catsHash = JSON.stringify(catData);
       if (catsHash !== prevCatsRef.current) {
-        prevCatsRef.current = catsHash;
+        prevCatsRef.current = catData.length ? catsHash : "";
         setCategories(catData);
       }
 
@@ -113,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const txnsHash = JSON.stringify(txnData);
       if (txnsHash !== prevTxnsRef.current) {
-        prevTxnsRef.current = txnsHash;
+        prevTxnsRef.current = txnData.length ? txnsHash : "";
         setTransactions(txnData);
       }
     } catch (err) {
@@ -125,10 +140,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!vaultCode) return;
     refreshData();
 
-    // Auto refresh interval every 5 seconds for live sync
+    // Auto refresh interval every 3 seconds for live sync
     const interval = setInterval(() => {
       refreshData();
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [vaultCode, refreshData]);
@@ -148,6 +163,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(data.token);
         if (data.label) setVaultLabel(data.label);
         localStorage.setItem("autotrack_vault_code", formatted);
+        if (typeof window !== "undefined" && (window as any).AndroidBridge?.setVaultCode) {
+          (window as any).AndroidBridge.setVaultCode(formatted);
+        }
         setLoading(false);
         return { success: true };
       }
