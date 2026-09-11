@@ -11,13 +11,13 @@ data class ParsedTransaction(
 object TransactionParser {
 
     private val negativeKeywords = listOf(
-        "failed", "declined", "pending", "requested", "otp", "secret code",
-        "verification code", "due date", "bill generated", "request received"
+        "failed", "declined", "pending", "otp", "secret code",
+        "verification code", "due date", "bill generated"
     )
 
-    // Regex for amount: ₹ 500, Rs. 1,200.50, INR 45, Rs 500, Amt 500, 500.00 debited, 500 INR, 500 Rs
+    // Regex for amount: ₹ 500, Rs. 1,200.50, INR 45, Rs 500, Amt 500, 500.00 debited, 500 INR, 500 Rs, paid 500, sent 500
     private val amountRegex = Regex(
-        """(?:₹|rs\.?|inr|amt\.?)\s*:?\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:₹|rs\.?|inr|debited|credited|paid|spent|sent)""",
+        """(?:₹|rs\.?|inr|amt\.?)\s*:?\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:₹|rs\.?|inr|debited|credited|paid|spent|sent)|(?:paid|sent|spent|debited|credited|transferred)\s+([\d,]+(?:\.\d{1,2})?)""",
         RegexOption.IGNORE_CASE
     )
 
@@ -31,7 +31,7 @@ object TransactionParser {
         Regex("""(?:received|credited|added)\s+(?:₹|rs\.?|inr|amt\.?)?\s*[\d,]+(?:\.\d{1,2})?\s+from\s+([A-Za-z0-9\s&@\.\-_]+?)(?:\s+(?:on|using|via|ref|to|a\/c|account|\.|$))""", RegexOption.IGNORE_CASE),
         // Received from / Credited by [Vendor]
         Regex("""(?:received from|from|credited by)\s+([A-Za-z0-9\s&@\.\-_]+?)(?:\s+(?:on|using|via|ref|to|a\/c|account|\.|$))""", RegexOption.IGNORE_CASE),
-        // Towards [Vendor]
+        // Towards / At / VPA [Vendor]
         Regex("""(?:towards|vpa|at)\s+([A-Za-z0-9\s&@\.\-_]+?)(?:\s+(?:on|using|via|ref|\.|$))""", RegexOption.IGNORE_CASE)
     )
 
@@ -39,15 +39,20 @@ object TransactionParser {
         if (text.isBlank()) return null
         val lower = text.lowercase()
 
-        // Skip negative/irrelevant notifications
-        if (negativeKeywords.any { it in lower }) {
+        // Skip negative/irrelevant notifications ONLY if no transaction completion indicator is present
+        val isCompleted = "successful" in lower || "success" in lower || "paid" in lower || "debited" in lower || "credited" in lower || "sent" in lower || "transferred" in lower
+        if (!isCompleted && negativeKeywords.any { it in lower }) {
+            return null
+        }
+        if ("failed" in lower || "declined" in lower || "pending" in lower || "otp" in lower) {
             return null
         }
 
-        // Match amount
+        // Match amount across all 3 regex groups
         val match = amountRegex.find(text) ?: return null
         val rawNum = match.groupValues.getOrNull(1)?.ifEmpty { null }
             ?: match.groupValues.getOrNull(2)?.ifEmpty { null }
+            ?: match.groupValues.getOrNull(3)?.ifEmpty { null }
             ?: return null
         val amount = rawNum.replace(",", "").toDoubleOrNull() ?: return null
         if (amount <= 0.0) return null
