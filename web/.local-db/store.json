@@ -1,0 +1,104 @@
+{
+  "vault_codes": [
+    {
+      "code": "NWB5ZFEL",
+      "label": "My Vault",
+      "created_at": "2026-09-11T11:07:40.085Z",
+      "last_accessed": "2026-09-11T11:07:40.085Z"
+    },
+    {
+      "code": "H7VZKKFM",
+      "label": "My Vault",
+      "created_at": "2026-09-11T11:08:50.751Z",
+      "last_accessed": "2026-09-11T11:08:50.751Z"
+    }
+  ],
+  "categories": [
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Food & Dining",
+      "icon": "🍔",
+      "color": "#F59E0B",
+      "monthly_cap": 10000,
+      "id": "cat_1789124932537_dj99n",
+      "created_at": "2026-09-11T11:08:52.537Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Shopping",
+      "icon": "🛍️",
+      "color": "#EC4899",
+      "monthly_cap": 8000,
+      "id": "cat_1789124932799_z8its",
+      "created_at": "2026-09-11T11:08:52.799Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Bills & Utilities",
+      "icon": "⚡",
+      "color": "#3B82F6",
+      "monthly_cap": 5000,
+      "id": "cat_1789124933044_055k2",
+      "created_at": "2026-09-11T11:08:53.045Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Transportation",
+      "icon": "🚗",
+      "color": "#10B981",
+      "monthly_cap": 4000,
+      "id": "cat_1789124933559_603j8",
+      "created_at": "2026-09-11T11:08:53.559Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Entertainment",
+      "icon": "🎬",
+      "color": "#8B5CF6",
+      "monthly_cap": 3000,
+      "id": "cat_1789124934074_9n7e0",
+      "created_at": "2026-09-11T11:08:54.074Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Health & Care",
+      "icon": "💊",
+      "color": "#EF4444",
+      "monthly_cap": 5000,
+      "id": "cat_1789124934365_ydipm",
+      "created_at": "2026-09-11T11:08:54.365Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Salary & Income",
+      "icon": "💰",
+      "color": "#10B981",
+      "monthly_cap": null,
+      "id": "cat_1789124934683_z0rgc",
+      "created_at": "2026-09-11T11:08:54.683Z"
+    },
+    {
+      "vault_code": "H7VZKKFM",
+      "name": "Investments",
+      "icon": "📈",
+      "color": "#06B6D4",
+      "monthly_cap": null,
+      "id": "cat_1789124935185_w0jsi",
+      "created_at": "2026-09-11T11:08:55.186Z"
+    }
+  ],
+  "transactions": [
+    {
+      "title": "Coffee at Starbucks",
+      "amount": 350,
+      "type": "expense",
+      "receiver_vendor": "Starbucks",
+      "source_app": "Google Pay",
+      "vault_code": "NWB5ZFEL",
+      "id": "txn_1789124878812_s4vrp",
+      "occurred_at": "2026-09-11T11:07:58.812Z",
+      "created_at": "2026-09-11T11:07:58.812Z",
+      "updated_at": "2026-09-11T11:07:58.812Z"
+    }
+  ]
+}

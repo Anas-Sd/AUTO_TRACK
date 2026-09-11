@@ -1,0 +1,1 @@
+const fs = require(" fs\); const path = require(\path\); const [,, target, content] = process.argv; fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, content, \utf8\); console.log(\Wrote\, target);

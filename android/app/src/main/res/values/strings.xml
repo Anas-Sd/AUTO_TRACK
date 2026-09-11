@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Auto Track</string>
+    <string name="notification_channel_name">Auto Track Watcher</string>
+    <string name="notification_channel_desc">Monitors incoming transaction notifications</string>
+    <string name="service_running_title">Auto Track is active</string>
+    <string name="service_running_text">Watching for transactions to instantly log</string>
+    <string name="confirm">Confirm</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="snooze">Snooze (5m)</string>
+    <string name="expense">Expense</string>
+    <string name="income">Income</string>
+</resources>
