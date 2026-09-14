@@ -30,9 +30,14 @@ function MainDashboard() {
   const [isAndroidApp, setIsAndroidApp] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !!(window as any).AndroidBridge?.isAndroidApp?.()) {
-      setIsAndroidApp(true);
-    }
+    const checkAndroid = () => {
+      if (typeof window !== "undefined" && ((window as any).AndroidBridge != null || !!(window as any).AndroidBridge?.isAndroidApp?.())) {
+        setIsAndroidApp(true);
+      }
+    };
+    checkAndroid();
+    const interval = setInterval(checkAndroid, 300);
+    return () => clearInterval(interval);
   }, []);
 
   const searchParams = useSearchParams();
