@@ -18,9 +18,18 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
+import { Transaction } from "@/lib/types";
 
-export default function ManualLogWidget() {
-  const { categories, addTransaction, addCategory } = useAuth();
+interface ManualLogWidgetProps {
+  onClose?: () => void;
+  initialTransaction?: Transaction | null;
+}
+
+export default function ManualLogWidget({
+  onClose,
+  initialTransaction,
+}: ManualLogWidgetProps) {
+  const { categories, addTransaction, updateTransaction, addCategory } = useAuth();
 
   // Navigation level: 1 or 2
   const [level, setLevel] = useState<1 | 2>(1);
@@ -40,6 +49,17 @@ export default function ManualLogWidget() {
 
   // Inline Category Modal State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (initialTransaction) {
+      setAmount(initialTransaction.amount ? initialTransaction.amount.toString() : "");
+      setType(initialTransaction.type || "expense");
+      setCategoryId(initialTransaction.category_id || "");
+      setPaymentMethod(initialTransaction.source_app === "Cash" ? "Cash" : "UPI");
+      setNote(initialTransaction.note || "");
+      setLevel(2);
+    }
+  }, [initialTransaction]);
 
   // Handle Level 1 -> Level 2 transition
   const handleContinue = () => {
@@ -71,23 +91,33 @@ export default function ManualLogWidget() {
       category_id: categoryId || null,
       source_app: paymentMethod,
       note: note.trim() || null,
-      occurred_at: new Date().toISOString(),
+      occurred_at: initialTransaction?.occurred_at || new Date().toISOString(),
     };
 
-    const result = await addTransaction(payload);
+    let result = false;
+    if (initialTransaction && initialTransaction.id) {
+      result = await updateTransaction(initialTransaction.id, payload);
+    } else {
+      const created = await addTransaction(payload);
+      result = !!created;
+    }
     setIsSaving(false);
 
     if (result) {
-      // Reset form to Level 1
-      setAmount("");
-      setType("expense");
-      setCategoryId("");
-      setPaymentMethod("UPI");
-      setNote("");
-      setLevel1Error(null);
-      setLevel(1);
-      setSuccessToast(true);
-      setTimeout(() => setSuccessToast(false), 2500);
+      if (onClose) {
+        onClose();
+      } else {
+        // Reset form to Level 1
+        setAmount("");
+        setType("expense");
+        setCategoryId("");
+        setPaymentMethod("UPI");
+        setNote("");
+        setLevel1Error(null);
+        setLevel(1);
+        setSuccessToast(true);
+        setTimeout(() => setSuccessToast(false), 2500);
+      }
     } else {
       setSaveError("Failed to save. Please try again.");
     }
@@ -118,6 +148,20 @@ export default function ManualLogWidget() {
       {level === 1 ? (
         /* ================= LEVEL 1 VIEW ================= */
         <div className="space-y-3">
+          {/* Modal Header when rendered as Popcard Modal */}
+          {onClose && (
+            <div className="flex items-center justify-between pb-2 border-b border-[#1E293B] text-xs font-bold text-white">
+              <span>{initialTransaction ? "Edit Transaction" : "Log Transaction"}</span>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E293B] transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Row 1: Income / Outcome Toggle (Outcome selected by default) */}
           <div className="grid grid-cols-2 gap-2 p-1 bg-[#0B0F17] rounded-xl border border-[#1E293B]">
             <button
