@@ -27,8 +27,10 @@
 
     <LinearLayout
         android:id="@+id/errorView"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:background="@drawable/bg_card_border"
         android:gravity="center"
         android:orientation="vertical"
         android:padding="24dp"
@@ -41,27 +43,38 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Unable to connect to Auto Track"
-            android:textColor="@color/text_white"
-            android:textSize="16sp"
+            android:text="⚡ AutoTrack Offline Mode"
+            android:textColor="@color/accent_mint"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Please check your internet connection."
-            android:textColor="@color/text_muted"
+            android:gravity="center"
+            android:text="Background Auto-Tracking is ACTIVE.\nNew payment notifications are being saved locally to your device SQLite database."
+            android:textColor="@color/text_white"
             android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="All offline transactions will automatically sync to Supabase once internet is restored."
+            android:textColor="@color/text_muted"
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btnRetry"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="20dp"
             android:backgroundTint="@color/accent_mint"
-            android:text="Retry"
-            android:textColor="@color/bg_dark" />
+            android:text="Retry &amp; Sync Dashboard"
+            android:textColor="@color/bg_dark"
+            android:textStyle="bold" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -55,8 +55,13 @@ class MainActivity : AppCompatActivity() {
         setupWebView(vaultCode)
 
         binding.btnRetry.setOnClickListener {
-            binding.errorView.visibility = View.GONE
-            binding.webView.reload()
+            if (DataSyncManager.isOnline(this)) {
+                binding.errorView.visibility = View.GONE
+                DataSyncManager.flushOfflineQueue(this)
+                binding.webView.reload()
+            } else {
+                Toast.makeText(this, "Still offline. Auto-tracking is running locally.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         handleCashLogIntent(intent)
@@ -92,7 +97,11 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
-        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.cacheMode = if (DataSyncManager.isOnline(this)) {
+            WebSettings.LOAD_DEFAULT
+        } else {
+            WebSettings.LOAD_CACHE_ELSE_NETWORK
+        }
         settings.allowFileAccess = false
         settings.allowContentAccess = false
 
@@ -118,6 +127,9 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 triggerLogCashModal()
+                if (DataSyncManager.isOnline(this@MainActivity)) {
+                    DataSyncManager.flushOfflineQueue(this@MainActivity)
+                }
             }
 
             override fun onReceivedError(
@@ -125,7 +137,7 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                if (request?.isForMainFrame == true) {
+                if (request?.isForMainFrame == true && !DataSyncManager.isOnline(this@MainActivity)) {
                     binding.errorView.visibility = View.VISIBLE
                 }
             }
