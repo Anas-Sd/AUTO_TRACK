@@ -226,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         type: txn.type || "expense",
         category_id: txn.category_id || null,
         source_app: txn.source_app || "Manual",
-        raw_notification: txn.raw_notification || null,
         occurred_at: txn.occurred_at || new Date().toISOString(),
       };
 

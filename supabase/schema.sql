@@ -31,7 +31,6 @@ CREATE TABLE transactions (
   type              TEXT NOT NULL CHECK (type IN ('income','expense')),
   category_id       UUID REFERENCES categories(id) ON DELETE SET NULL,
   source_app        TEXT,
-  raw_notification  TEXT,
   occurred_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()

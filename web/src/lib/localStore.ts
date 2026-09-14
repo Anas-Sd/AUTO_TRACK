@@ -21,7 +21,6 @@ interface LocalStoreData {
     type: "income" | "expense";
     category_id?: string | null;
     source_app?: string;
-    raw_notification?: string;
     occurred_at: string;
     created_at: string;
     updated_at: string;

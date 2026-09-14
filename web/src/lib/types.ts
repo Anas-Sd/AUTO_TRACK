@@ -25,7 +25,6 @@ export interface Transaction {
   type: "income" | "expense";
   category_id?: string | null;
   source_app?: string | null;
-  raw_notification?: string | null;
   occurred_at: string;
   created_at: string;
   updated_at: string;

@@ -257,7 +257,6 @@ object DataSyncManager {
             if (!vendor.isNullOrBlank()) put("receiver_vendor", vendor)
             put("source_app", sourceApp)
             if (!note.isNullOrBlank()) put("note", note)
-            if (!rawNotification.isNullOrBlank()) put("raw_notification", rawNotification)
             put("occurred_at", occurredAt)
         }
 
