@@ -65,6 +65,10 @@ export default function ManualLogWidget({
 
   // Handle Level 1 -> Level 2 transition
   const handleContinue = () => {
+    if (!receiverVendor.trim()) {
+      setLevel1Error(type === "expense" ? "Please enter TO (Receiver / Vendor) name" : "Please enter FROM (Sender / Source) name");
+      return;
+    }
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
       setLevel1Error("Please enter amount");
@@ -77,6 +81,11 @@ export default function ManualLogWidget({
   // Handle Level 2 Save
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!receiverVendor.trim()) {
+      setLevel1Error(type === "expense" ? "Please enter TO (Receiver / Vendor) name" : "Please enter FROM (Sender / Source) name");
+      setLevel(1);
+      return;
+    }
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
       setLevel1Error("Please enter amount");
@@ -215,44 +224,49 @@ export default function ManualLogWidget({
           </div>
 
           {/* Row 3: Amount Field + Continue Button */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold font-mono text-slate-400">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="any"
-                value={amount}
-                onChange={(e) => {
-                  setAmount(e.target.value);
-                  if (level1Error) setLevel1Error(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleContinue();
-                  }
-                }}
-                placeholder="0.00"
-                className={`w-full pl-7 pr-3 py-2 bg-[#0B0F17] border rounded-xl font-mono text-sm font-bold focus:outline-none transition ${
-                  level1Error
-                    ? "border-rose-500 text-rose-400"
-                    : type === "expense"
-                    ? "border-[#1E293B] text-rose-400 focus:border-rose-500"
-                    : "border-[#1E293B] text-emerald-400 focus:border-emerald-500"
-                }`}
-              />
-            </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              Amount
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold font-mono text-slate-400">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  step="any"
+                  value={amount}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    if (level1Error) setLevel1Error(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleContinue();
+                    }
+                  }}
+                  placeholder="0.00"
+                  className={`w-full pl-7 pr-3 py-2 bg-[#0B0F17] border rounded-xl font-mono text-sm font-bold focus:outline-none transition ${
+                    level1Error
+                      ? "border-rose-500 text-rose-400"
+                      : type === "expense"
+                      ? "border-[#1E293B] text-rose-400 focus:border-rose-500"
+                      : "border-[#1E293B] text-emerald-400 focus:border-emerald-500"
+                  }`}
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={handleContinue}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-sm"
-            >
-              <span>Continue</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+              <button
+                type="button"
+                onClick={handleContinue}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-sm"
+              >
+                <span>Continue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Validation Error Message */}
