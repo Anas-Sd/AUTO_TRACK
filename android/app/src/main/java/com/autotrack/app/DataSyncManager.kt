@@ -324,4 +324,50 @@ object DataSyncManager {
         val cap = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
         return cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
+
+    suspend fun rotateVaultCode(): String? = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext null
+        val token = getSessionToken()
+        val url = "$SUPABASE_URL/functions/v1/vault/rotate"
+        val reqBuilder = Request.Builder()
+            .url(url)
+            .addHeader("apikey", SUPABASE_ANON_KEY)
+            .post("{}".toRequestBody(jsonMedia))
+        if (!token.isNullOrEmpty()) {
+            reqBuilder.addHeader("Authorization", "Bearer $token")
+        }
+        try {
+            val res = client.newCall(reqBuilder.build()).execute()
+            if (res.isSuccessful) {
+                val json = JSONObject(res.body?.string() ?: "{}")
+                val newCode = json.optString("new_code", "")
+                if (newCode.isNotEmpty()) {
+                    saveVaultCode(newCode)
+                    return@withContext newCode
+                }
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
+        null
+    }
+
+    suspend fun wipeVaultData(): Boolean = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext false
+        val token = getSessionToken()
+        val url = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault"
+        val reqBuilder = Request.Builder()
+            .url(url)
+            .addHeader("apikey", SUPABASE_ANON_KEY)
+            .delete()
+        if (!token.isNullOrEmpty()) {
+            reqBuilder.addHeader("Authorization", "Bearer $token")
+        }
+        try {
+            val res = client.newCall(reqBuilder.build()).execute()
+            return@withContext res.isSuccessful
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
 }
