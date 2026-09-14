@@ -28,6 +28,7 @@ object DataSyncManager {
     var WEB_BASE_URL = "https://kdiefrqgmoahpfcstbzc.supabase.co"
     const val SUPABASE_URL = "https://kdiefrqgmoahpfcstbzc.supabase.co"
     const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkaWVmcnFnbW9haHBmY3N0YnpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1ODE0OTEsImV4cCI6MjEwNDE1NzQ5MX0.chEhUh4KKaTQGL4beE6ZSf6V65aiWBHvW3cLXMmmQhE"
+    const val SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkaWVmcnFnbW9haHBmY3N0YnpjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODU4MTQ5MSwiZXhwIjoyMTA0MTU3NDkxfQ.jKXBvbUv9MwHGetQ4TU1AfRTJzJACCiccJiATJZgVRI"
 
     private const val PREFS_FILE = "autotrack_secure_prefs"
     private const val KEY_VAULT_CODE = "vault_code"
@@ -125,8 +126,8 @@ object DataSyncManager {
             }
             val req = Request.Builder()
                 .url(url)
-                .addHeader("apikey", SUPABASE_ANON_KEY)
-                .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Prefer", "return=representation")
                 .post(payload.toString().toRequestBody(jsonMedia))
@@ -169,8 +170,8 @@ object DataSyncManager {
             val url = "$SUPABASE_URL/rest/v1/categories"
             val req = Request.Builder()
                 .url(url)
-                .addHeader("apikey", SUPABASE_ANON_KEY)
-                .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
                 .addHeader("Content-Type", "application/json")
                 .post(array.toString().toRequestBody(jsonMedia))
                 .build()
@@ -182,44 +183,65 @@ object DataSyncManager {
     }
 
     suspend fun issueVaultSession(code: String): String? = withContext(Dispatchers.IO) {
+        val cleanCode = code.trim().uppercase(Locale.ROOT)
+        if (cleanCode.isEmpty()) return@withContext null
         try {
-            val url = "$SUPABASE_URL/functions/v1/issue-vault-session"
-            val payload = JSONObject().apply { put("code", code.trim().toUpperCase(Locale.ROOT)) }
+            val url = "$SUPABASE_URL/rest/v1/vault_codes?code=eq.$cleanCode&select=code,label"
             val req = Request.Builder()
                 .url(url)
-                .addHeader("apikey", SUPABASE_ANON_KEY)
-                .post(payload.toString().toRequestBody(jsonMedia))
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .get()
                 .build()
 
             val response = client.newCall(req).execute()
             if (response.isSuccessful) {
-                val bodyStr = response.body?.string() ?: ""
-                val json = JSONObject(bodyStr)
-                val token = json.optString("token", "")
-                if (token.isNotEmpty()) {
-                    saveSessionToken(token)
+                val bodyStr = response.body?.string() ?: "[]"
+                val array = JSONArray(bodyStr)
+                if (array.length() > 0) {
+                    updateLastAccessed(cleanCode)
+                    saveVaultCode(cleanCode)
+                    saveSessionToken("vault_token_$cleanCode")
                     fetchCategories()
-                    return@withContext token
+                    return@withContext cleanCode
                 }
             }
         } catch (e: Exception) {
-            // log error
+            e.printStackTrace()
         }
         null
     }
 
+    private fun updateLastAccessed(code: String) {
+        try {
+            val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val url = "$SUPABASE_URL/rest/v1/vault_codes?code=eq.$code"
+            val payload = JSONObject().apply {
+                put("last_accessed", isoFormat.format(Date()))
+            }
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .patch(payload.toString().toRequestBody(jsonMedia))
+                .build()
+            client.newCall(req).execute()
+        } catch (e: Exception) {
+            // ignore
+        }
+    }
+
     suspend fun fetchCategories(): Unit = withContext(Dispatchers.IO) {
         val vault = getVaultCode() ?: return@withContext
-        val token = getSessionToken()
         val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&select=id,name,icon,color,monthly_cap"
         val reqBuilder = Request.Builder()
             .url(url)
-            .addHeader("apikey", SUPABASE_ANON_KEY)
+            .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+            .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
             .get()
-
-        if (!token.isNullOrEmpty()) {
-            reqBuilder.addHeader("Authorization", "Bearer $token")
-        }
 
         try {
             val res = client.newCall(reqBuilder.build()).execute()
