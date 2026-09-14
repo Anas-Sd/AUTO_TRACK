@@ -31,14 +31,21 @@ export default function CategoriesTab() {
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [deleteConfirmCat, setDeleteConfirmCat] = useState<{ id: string; name: string } | null>(null);
 
-  // Compute total spend per category across ALL time (does not reset monthly)
-  const categoryTotalSpend = useMemo(() => {
-    const map = new Map<string, number>();
+  // Compute total expense & income per category across ALL time
+  const categoryStats = useMemo(() => {
+    const map = new Map<string, { expense: number; income: number; totalVolume: number }>();
 
     transactions.forEach((t) => {
-      if (t.type === "expense" && t.category_id) {
-        const current = map.get(t.category_id) || 0;
-        map.set(t.category_id, current + (Number(t.amount) || 0));
+      if (t.category_id) {
+        const current = map.get(t.category_id) || { expense: 0, income: 0, totalVolume: 0 };
+        const amt = Number(t.amount) || 0;
+        if (t.type === "expense") {
+          current.expense += amt;
+        } else {
+          current.income += amt;
+        }
+        current.totalVolume += amt;
+        map.set(t.category_id, current);
       }
     });
 
@@ -105,7 +112,9 @@ export default function CategoriesTab() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {categories.map((cat) => {
-            const spent = categoryTotalSpend.get(cat.id) || 0;
+            const stats = categoryStats.get(cat.id) || { expense: 0, income: 0, totalVolume: 0 };
+            const spent = stats.expense;
+            const income = stats.income;
             const openingBalance = cat.monthly_cap;
             const hasBalance = openingBalance !== null && openingBalance !== undefined && openingBalance > 0;
             const percent = hasBalance ? Math.min(Math.round((spent / openingBalance) * 100), 100) : 0;
@@ -173,19 +182,17 @@ export default function CategoriesTab() {
 
                   {/* Total Spend & Opening Balance Status */}
                   <div className="mt-5 space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <TrendingDown className="w-3 h-3 text-slate-500" /> Total Spent
-                      </span>
-                      <span className="font-mono text-xs font-bold text-white">
-                        ₹{spent.toLocaleString("en-IN")}
-                        {hasBalance && (
-                          <span className="text-slate-500 font-normal">
-                            {" "}
-                            / Opening: ₹{openingBalance.toLocaleString("en-IN")}
-                          </span>
-                        )}
-                      </span>
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <div className="flex items-center gap-2">
+                        {spent > 0 && <span className="font-bold text-rose-400">-₹{spent.toLocaleString("en-IN")}</span>}
+                        {income > 0 && <span className="font-bold text-emerald-400">+₹{income.toLocaleString("en-IN")}</span>}
+                        {spent === 0 && income === 0 && <span className="text-slate-500 font-normal">₹0</span>}
+                      </div>
+                      {hasBalance && (
+                        <span className="text-slate-400 text-[11px]">
+                          Opening: ₹{openingBalance.toLocaleString("en-IN")}
+                        </span>
+                      )}
                     </div>
 
                     {/* Progress Bar if Opening Balance is set */}

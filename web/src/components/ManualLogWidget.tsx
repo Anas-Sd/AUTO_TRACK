@@ -36,6 +36,7 @@ export default function ManualLogWidget({
 
   // Level 1 State
   const [type, setType] = useState<"income" | "expense">("expense"); // "expense" = Outcome
+  const [receiverVendor, setReceiverVendor] = useState("");
   const [amount, setAmount] = useState("");
   const [level1Error, setLevel1Error] = useState<string | null>(null);
 
@@ -54,6 +55,7 @@ export default function ManualLogWidget({
     if (initialTransaction) {
       setAmount(initialTransaction.amount ? initialTransaction.amount.toString() : "");
       setType(initialTransaction.type || "expense");
+      setReceiverVendor(initialTransaction.receiver_vendor || "");
       setCategoryId(initialTransaction.category_id || "");
       setPaymentMethod(initialTransaction.source_app === "Cash" ? "Cash" : "UPI");
       setNote(initialTransaction.note || "");
@@ -88,6 +90,7 @@ export default function ManualLogWidget({
     const payload = {
       amount: num,
       type,
+      receiver_vendor: receiverVendor.trim() || null,
       category_id: categoryId || null,
       source_app: paymentMethod,
       note: note.trim() || null,
@@ -194,7 +197,24 @@ export default function ManualLogWidget({
             </button>
           </div>
 
-          {/* Row 2: Amount Field + Continue Button */}
+          {/* Row 2: TO (for Outcome) / FROM (for Income) Input Field */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-300 mb-1">
+              {type === "expense" ? "TO (Receiver / Vendor)" : "FROM (Sender / Source)"}
+            </label>
+            <input
+              type="text"
+              value={receiverVendor}
+              onChange={(e) => {
+                setReceiverVendor(e.target.value);
+                if (level1Error) setLevel1Error(null);
+              }}
+              placeholder={type === "expense" ? "e.g. Tea Stall, Zomato, Mother..." : "e.g. Salary, Mother, Friend..."}
+              className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          {/* Row 3: Amount Field + Continue Button */}
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold font-mono text-slate-400">

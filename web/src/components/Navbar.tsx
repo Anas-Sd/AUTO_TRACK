@@ -33,12 +33,7 @@ export default function Navbar() {
 
   const navItems: NavItem[] = [
     { id: "overview", label: "Overview", icon: PieChart },
-    {
-      id: "ledger",
-      label: "Ledger",
-      icon: Receipt,
-      badge: transactions.length > 0 ? transactions.length : undefined,
-    },
+    { id: "ledger", label: "Ledger", icon: Receipt },
     { id: "categories", label: "Categories", icon: FolderTree },
     { id: "settings", label: "Settings", icon: Settings },
   ];
