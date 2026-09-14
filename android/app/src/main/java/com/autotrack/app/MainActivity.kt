@@ -48,10 +48,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 2. Start Foreground Watcher Service
-        ForegroundWatchService.start(this)
-
-        // 3. Setup WebView & Android Javascript Bridge
+        // 2. Setup WebView & Android Javascript Bridge
         setupWebView(vaultCode)
 
         binding.btnRetry.setOnClickListener {
@@ -60,7 +57,7 @@ class MainActivity : AppCompatActivity() {
                 DataSyncManager.flushOfflineQueue(this)
                 binding.webView.reload()
             } else {
-                Toast.makeText(this, "Still offline. Auto-tracking is running locally.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Still offline. Transactions will sync when connected.", Toast.LENGTH_SHORT).show()
             }
         }
 

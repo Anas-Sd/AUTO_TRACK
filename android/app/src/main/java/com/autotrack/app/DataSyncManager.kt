@@ -34,43 +34,7 @@ object DataSyncManager {
     private const val KEY_SESSION_TOKEN = "session_token"
     private const val KEY_ALLOWED_PACKAGES = "allowed_packages"
     private const val KEY_CACHED_CATEGORIES = "cached_categories"
-    private const val KEY_SERVICE_ENABLED = "service_enabled"
-    private const val KEY_CASH_REMINDER_ENABLED = "cash_reminder_enabled"
-    private const val KEY_CASH_REMINDER_TIME = "cash_reminder_time"
-
     private lateinit var prefs: SharedPreferences
-
-    fun isServiceEnabled(): Boolean = prefs.getBoolean(KEY_SERVICE_ENABLED, true)
-
-    fun setServiceEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_SERVICE_ENABLED, enabled).apply()
-    }
-
-    fun getCashReminderEnabled(): Boolean = prefs.getBoolean(KEY_CASH_REMINDER_ENABLED, false)
-
-    fun setCashReminderEnabled(context: Context, enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_CASH_REMINDER_ENABLED, enabled).apply()
-        if (enabled) {
-            val timeParts = getCashReminderTime().split(":")
-            val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 21
-            val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
-            DailyCashReminderReceiver.schedule(context, hour, minute)
-        } else {
-            DailyCashReminderReceiver.cancel(context)
-        }
-    }
-
-    fun getCashReminderTime(): String = prefs.getString(KEY_CASH_REMINDER_TIME, "21:00") ?: "21:00"
-
-    fun setCashReminderTime(context: Context, timeStr: String) {
-        prefs.edit().putString(KEY_CASH_REMINDER_TIME, timeStr).apply()
-        if (getCashReminderEnabled()) {
-            val timeParts = timeStr.split(":")
-            val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 21
-            val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
-            DailyCashReminderReceiver.schedule(context, hour, minute)
-        }
-    }
     private lateinit var dbHelper: OfflineQueueDbHelper
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -89,38 +53,6 @@ object DataSyncManager {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
         dbHelper = OfflineQueueDbHelper(context)
-
-        // Seed default allowed packages if empty
-        if (!prefs.contains(KEY_ALLOWED_PACKAGES)) {
-            val defaults = setOf(
-                "com.google.android.apps.nbu.paisa.user", // Google Pay
-                "com.phonepe.app",                       // PhonePe
-                "net.one97.paytm",                       // Paytm
-                "in.org.npci.upiapp",                    // BHIM
-                "com.navi.navihealth",                   // Navi UPI
-                "com.navi.app",                          // Navi App
-                "com.super.money",                       // super.money
-                "com.supermoney.app",                    // super.money app
-                "com.hdfcbank.payzapp",                  // HDFC
-                "com.csam.icici.bank.imobile",          // ICICI
-                "com.sbi.lotusintouch",                  // SBI
-                "com.axis.mobile",                       // Axis
-                "com.google.android.apps.messaging",     // Google Messages
-                "com.samsung.android.messaging",         // Samsung Messages
-                "com.android.mms"                        // Default SMS
-            )
-            setAllowedPackages(defaults)
-        }
-
-        // Enable Cash Reminder by default if not set
-        if (!prefs.contains(KEY_CASH_REMINDER_ENABLED)) {
-            setCashReminderEnabled(context, true)
-        } else if (getCashReminderEnabled()) {
-            val timeParts = getCashReminderTime().split(":")
-            val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 21
-            val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
-            DailyCashReminderReceiver.schedule(context, hour, minute)
-        }
     }
 
     fun getVaultCode(): String? = prefs.getString(KEY_VAULT_CODE, null)

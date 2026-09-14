@@ -12,6 +12,7 @@ export interface Category {
   icon?: string | null;
   color?: string | null;
   monthly_cap?: number | null;
+  opening_balance?: number | null;
   created_at: string;
 }
 
