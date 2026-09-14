@@ -11,7 +11,6 @@ import LedgerTab from "@/components/LedgerTab";
 import CategoriesTab from "@/components/CategoriesTab";
 import SettingsTab from "@/components/SettingsTab";
 import TransactionModal from "@/components/TransactionModal";
-import ManualLogWidget from "@/components/ManualLogWidget";
 import { Loader2 } from "lucide-react";
 
 function MainDashboard() {
@@ -28,17 +27,22 @@ function MainDashboard() {
   } = useAuth();
 
   const [isAndroidApp, setIsAndroidApp] = useState(false);
+  const [hasAutoOpenedLog, setHasAutoOpenedLog] = useState(false);
 
   useEffect(() => {
     const checkAndroid = () => {
       if (typeof window !== "undefined" && ((window as any).AndroidBridge != null || !!(window as any).AndroidBridge?.isAndroidApp?.())) {
         setIsAndroidApp(true);
+        if (!hasAutoOpenedLog && vaultCode && token) {
+          setIsLogModalOpen(true);
+          setHasAutoOpenedLog(true);
+        }
       }
     };
     checkAndroid();
     const interval = setInterval(checkAndroid, 300);
     return () => clearInterval(interval);
-  }, []);
+  }, [vaultCode, token, hasAutoOpenedLog, setIsLogModalOpen]);
 
   const searchParams = useSearchParams();
 
@@ -70,12 +74,6 @@ function MainDashboard() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 relative">
-        {/* Top 1/3rd Manual Log Widget - Strictly ONLY displayed inside Native Android Mobile Application */}
-        {isAndroidApp && (
-          <div className="sticky top-2 z-30 mb-5 shadow-2xl">
-            <ManualLogWidget />
-          </div>
-        )}
 
         {activeTab === "overview" && <OverviewTab />}
         {activeTab === "ledger" && <LedgerTab />}
