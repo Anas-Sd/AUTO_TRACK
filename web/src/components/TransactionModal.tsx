@@ -18,8 +18,14 @@ export default function TransactionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0F17]/85 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-100">
-      <div className="w-full max-w-md bg-[#131A26] border border-[#1E293B] rounded-2xl p-4 shadow-2xl relative my-8">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B0F17]/85 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-100 cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md bg-[#131A26] border border-[#1E293B] rounded-2xl p-4 shadow-2xl relative my-8 cursor-default"
+      >
         <ManualLogWidget onClose={onClose} initialTransaction={initialTransaction} />
       </div>
     </div>

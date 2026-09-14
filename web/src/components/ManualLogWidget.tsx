@@ -39,6 +39,7 @@ export default function ManualLogWidget({
   const [receiverVendor, setReceiverVendor] = useState("");
   const [amount, setAmount] = useState("");
   const [level1Error, setLevel1Error] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<"toFrom" | "amount" | null>(null);
 
   // Level 2 State
   const [categoryId, setCategoryId] = useState<string>("");
@@ -66,14 +67,17 @@ export default function ManualLogWidget({
   // Handle Level 1 -> Level 2 transition
   const handleContinue = () => {
     if (!receiverVendor.trim()) {
+      setErrorField("toFrom");
       setLevel1Error(type === "expense" ? "Please enter TO (Receiver / Vendor) name" : "Please enter FROM (Sender / Source) name");
       return;
     }
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
+      setErrorField("amount");
       setLevel1Error("Please enter amount");
       return;
     }
+    setErrorField(null);
     setLevel1Error(null);
     setLevel(2);
   };
@@ -82,12 +86,14 @@ export default function ManualLogWidget({
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!receiverVendor.trim()) {
+      setErrorField("toFrom");
       setLevel1Error(type === "expense" ? "Please enter TO (Receiver / Vendor) name" : "Please enter FROM (Sender / Source) name");
       setLevel(1);
       return;
     }
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
+      setErrorField("amount");
       setLevel1Error("Please enter amount");
       setLevel(1);
       return;
@@ -216,10 +222,17 @@ export default function ManualLogWidget({
               value={receiverVendor}
               onChange={(e) => {
                 setReceiverVendor(e.target.value);
-                if (level1Error) setLevel1Error(null);
+                if (errorField === "toFrom") {
+                  setErrorField(null);
+                  setLevel1Error(null);
+                }
               }}
               placeholder={type === "expense" ? "e.g. Tea Stall, Zomato, Mother..." : "e.g. Salary, Mother, Friend..."}
-              className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+              className={`w-full bg-[#0B0F17] border rounded-xl px-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none transition ${
+                errorField === "toFrom"
+                  ? "border-rose-500 text-rose-400 focus:border-rose-500"
+                  : "border-[#1E293B] focus:border-emerald-500"
+              }`}
             />
           </div>
 
@@ -239,7 +252,10 @@ export default function ManualLogWidget({
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
-                    if (level1Error) setLevel1Error(null);
+                    if (errorField === "amount") {
+                      setErrorField(null);
+                      setLevel1Error(null);
+                    }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -249,8 +265,8 @@ export default function ManualLogWidget({
                   }}
                   placeholder="0.00"
                   className={`w-full pl-7 pr-3 py-2 bg-[#0B0F17] border rounded-xl font-mono text-sm font-bold focus:outline-none transition ${
-                    level1Error
-                      ? "border-rose-500 text-rose-400"
+                    errorField === "amount"
+                      ? "border-rose-500 text-rose-400 focus:border-rose-500"
                       : type === "expense"
                       ? "border-[#1E293B] text-rose-400 focus:border-rose-500"
                       : "border-[#1E293B] text-emerald-400 focus:border-emerald-500"

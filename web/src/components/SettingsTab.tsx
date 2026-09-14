@@ -110,7 +110,7 @@ export default function SettingsTab() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl pb-20 md:pb-8">
+    <div className="space-y-6 max-w-3xl pb-32 md:pb-8">
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
@@ -176,7 +176,7 @@ export default function SettingsTab() {
         </div>
 
         <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1E293B] space-y-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             {/* Masked / Visible Code */}
             <div className="flex items-center gap-2">
               <span className="font-mono text-lg font-bold text-emerald-400 tracking-widest">
@@ -193,10 +193,10 @@ export default function SettingsTab() {
             </div>
 
             {/* Action Buttons: Copy & Rotate */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={copyVaultCode}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-white text-xs font-medium transition cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-white text-xs font-medium transition cursor-pointer flex-1 sm:flex-initial"
               >
                 {hasCopiedCode ? (
                   <>
@@ -212,7 +212,7 @@ export default function SettingsTab() {
               <button
                 onClick={() => setRotateConfirmOpen(true)}
                 disabled={isRotatingCode}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 text-xs font-semibold transition cursor-pointer disabled:opacity-50 flex-1 sm:flex-initial"
               >
                 {isRotatingCode ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -262,7 +262,7 @@ export default function SettingsTab() {
       {/* 4. Danger Zone: Wipe Data, Logout, & Delete Account */}
       <div className="bg-[#131A26] border border-rose-500/20 rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
         {/* Wipe Data */}
-        <div className="flex items-center justify-between pb-3 border-b border-rose-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-rose-500/20">
           <div>
             <h4 className="text-sm font-bold text-rose-400 flex items-center gap-2">
               <Trash2 className="w-4 h-4 text-rose-400" /> Clear All Data
@@ -274,7 +274,7 @@ export default function SettingsTab() {
           <button
             onClick={() => setWipeConfirmOpen(true)}
             disabled={isWipingData}
-            className="px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
             {isWipingData ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -293,7 +293,7 @@ export default function SettingsTab() {
         )}
 
         {/* Lock & Logout */}
-        <div className="flex items-center justify-between pt-1 border-t border-[#1E293B]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#1E293B]">
           <div>
             <h4 className="text-sm font-bold text-slate-300">Lock & Log Out</h4>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -302,7 +302,7 @@ export default function SettingsTab() {
           </div>
           <button
             onClick={logoutVault}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Log Out</span>
@@ -310,7 +310,7 @@ export default function SettingsTab() {
         </div>
 
         {/* Delete Vault Code Permanently */}
-        <div className="flex items-center justify-between pt-3 border-t border-rose-500/30">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-rose-500/30">
           <div>
             <h4 className="text-sm font-bold text-rose-500 flex items-center gap-2">
               <Trash2 className="w-4 h-4 text-rose-500" /> Delete Vault Account
@@ -322,7 +322,7 @@ export default function SettingsTab() {
           <button
             onClick={() => setDeleteConfirmOpen(true)}
             disabled={isDeletingVault}
-            className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
             {isDeletingVault ? (
               <Loader2 className="w-4 h-4 animate-spin" />
