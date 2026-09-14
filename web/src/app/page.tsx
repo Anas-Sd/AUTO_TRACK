@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import Navbar from "@/components/Navbar";
@@ -26,6 +26,14 @@ function MainDashboard() {
     editingTransaction,
     setEditingTransaction,
   } = useAuth();
+
+  const [isAndroidApp, setIsAndroidApp] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !!(window as any).AndroidBridge?.isAndroidApp?.()) {
+      setIsAndroidApp(true);
+    }
+  }, []);
 
   const searchParams = useSearchParams();
 
@@ -57,10 +65,12 @@ function MainDashboard() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 relative">
-        {/* Top 1/3rd Manual Log Widget - Only available in Mobile / Android Application */}
-        <div className="md:hidden sticky top-2 z-30 mb-5 shadow-2xl">
-          <ManualLogWidget />
-        </div>
+        {/* Top 1/3rd Manual Log Widget - Strictly ONLY displayed inside Native Android Mobile Application */}
+        {isAndroidApp && (
+          <div className="sticky top-2 z-30 mb-5 shadow-2xl">
+            <ManualLogWidget />
+          </div>
+        )}
 
         {activeTab === "overview" && <OverviewTab />}
         {activeTab === "ledger" && <LedgerTab />}
