@@ -291,8 +291,8 @@ object DataSyncManager {
         val url = "$SUPABASE_URL/rest/v1/transactions"
         val reqBuilder = Request.Builder()
             .url(url)
-            .addHeader("apikey", SUPABASE_ANON_KEY)
-            .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+            .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+            .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
             .addHeader("Content-Type", "application/json")
             .addHeader("Prefer", "return=minimal")
             .post(payload.toString().toRequestBody(jsonMedia))
@@ -314,6 +314,49 @@ object DataSyncManager {
         }
     }
 
+    suspend fun deleteTransaction(id: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = "$SUPABASE_URL/rest/v1/transactions?id=eq.$id"
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+
+            val res = client.newCall(req).execute()
+            return@withContext res.isSuccessful
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
+
+    suspend fun createCategory(name: String, icon: String, color: String = "#10B981", monthlyCap: Double? = null): Boolean = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext false
+        try {
+            val url = "$SUPABASE_URL/rest/v1/categories"
+            val payload = JSONObject().apply {
+                put("vault_code", vault)
+                put("name", name)
+                put("icon", icon)
+                put("color", color)
+                if (monthlyCap != null) put("monthly_cap", monthlyCap)
+            }
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody(jsonMedia))
+                .build()
+
+            val res = client.newCall(req).execute()
+            return@withContext res.isSuccessful
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
+
     fun flushOfflineQueue(context: Context) {
         if (!isOnline(context)) return
 
@@ -324,8 +367,8 @@ object DataSyncManager {
                     val url = "$SUPABASE_URL/rest/v1/transactions"
                     val reqBuilder = Request.Builder()
                         .url(url)
-                        .addHeader("apikey", SUPABASE_ANON_KEY)
-                        .addHeader("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                        .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                        .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
                         .addHeader("Content-Type", "application/json")
                         .addHeader("Prefer", "return=minimal")
                         .post(payload.toString().toRequestBody(jsonMedia))

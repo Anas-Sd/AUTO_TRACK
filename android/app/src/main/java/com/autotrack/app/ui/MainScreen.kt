@@ -62,8 +62,8 @@ fun MainScreen(
             val catUrl = "${DataSyncManager.SUPABASE_URL}/rest/v1/categories?vault_code=eq.$vault&select=id,name,icon,color,monthly_cap"
             val catReq = Request.Builder()
                 .url(catUrl)
-                .addHeader("apikey", DataSyncManager.SUPABASE_ANON_KEY)
-                .apply { if (!token.isNullOrEmpty()) addHeader("Authorization", "Bearer $token") }
+                .addHeader("apikey", DataSyncManager.SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer ${DataSyncManager.SUPABASE_SERVICE_ROLE_KEY}")
                 .get()
                 .build()
 
@@ -94,8 +94,8 @@ fun MainScreen(
             val txUrl = "${DataSyncManager.SUPABASE_URL}/rest/v1/transactions?vault_code=eq.$vault&select=id,vault_code,amount,type,receiver_vendor,category_id,source_app,note,occurred_at&order=occurred_at.desc"
             val txReq = Request.Builder()
                 .url(txUrl)
-                .addHeader("apikey", DataSyncManager.SUPABASE_ANON_KEY)
-                .apply { if (!token.isNullOrEmpty()) addHeader("Authorization", "Bearer $token") }
+                .addHeader("apikey", DataSyncManager.SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer ${DataSyncManager.SUPABASE_SERVICE_ROLE_KEY}")
                 .get()
                 .build()
 
@@ -228,24 +228,9 @@ fun MainScreen(
                     transactions = transactions,
                     categories = categories,
                     onDeleteTransaction = { txId ->
-                        scope.launch(Dispatchers.IO) {
-                            val vault = DataSyncManager.getVaultCode() ?: return@launch
-                            val token = DataSyncManager.getSessionToken()
-                            val client = OkHttpClient()
-                            val delUrl = "${DataSyncManager.SUPABASE_URL}/rest/v1/transactions?id=eq.$txId&vault_code=eq.$vault"
-                            val delReq = Request.Builder()
-                                .url(delUrl)
-                                .addHeader("apikey", DataSyncManager.SUPABASE_ANON_KEY)
-                                .apply { if (!token.isNullOrEmpty()) addHeader("Authorization", "Bearer $token") }
-                                .delete()
-                                .build()
-
-                            try {
-                                client.newCall(delReq).execute()
-                                refreshData()
-                            } catch (e: Exception) {
-                                // ignore
-                            }
+                        scope.launch {
+                            DataSyncManager.deleteTransaction(txId)
+                            refreshData()
                         }
                     }
                 )
@@ -276,7 +261,7 @@ fun MainScreen(
         }
     }
 
-    // Native 2-Level Manual Log BottomSheet
+    // Native 2-Level Manual Log Dialog (Top-Anchored Modal Popup)
     if (isBottomSheetOpen) {
         ManualLogBottomSheet(
             onDismissRequest = { isBottomSheetOpen = false },
@@ -300,34 +285,9 @@ fun MainScreen(
                 }
             },
             onCreateCategory = { name, icon, cap ->
-                scope.launch(Dispatchers.IO) {
-                    val vault = DataSyncManager.getVaultCode() ?: return@launch
-                    val token = DataSyncManager.getSessionToken()
-                    val client = OkHttpClient()
-                    val url = "${DataSyncManager.SUPABASE_URL}/rest/v1/categories"
-
-                    val payload = JSONObject().apply {
-                        put("vault_code", vault)
-                        put("name", name)
-                        put("icon", icon)
-                        put("color", "#10B981")
-                        if (cap != null) put("monthly_cap", cap)
-                    }
-
-                    val req = Request.Builder()
-                        .url(url)
-                        .addHeader("apikey", DataSyncManager.SUPABASE_ANON_KEY)
-                        .apply { if (!token.isNullOrEmpty()) addHeader("Authorization", "Bearer $token") }
-                        .addHeader("Content-Type", "application/json")
-                        .post(okhttp3.RequestBody.create(null, payload.toString()))
-                        .build()
-
-                    try {
-                        client.newCall(req).execute()
-                        refreshData()
-                    } catch (e: Exception) {
-                        // ignore
-                    }
+                scope.launch {
+                    DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                    refreshData()
                 }
             }
         )

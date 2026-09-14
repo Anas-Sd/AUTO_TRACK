@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.sp
 import com.autotrack.app.data.Category
 import com.autotrack.app.ui.theme.*
 
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManualLogBottomSheet(
@@ -31,8 +34,6 @@ fun ManualLogBottomSheet(
     onSaveTransaction: (amount: Double, type: String, vendor: String?, categoryId: String?, paymentMethod: String, note: String?) -> Unit,
     onCreateCategory: (name: String, icon: String, cap: Double?) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    
     // Level 1 or 2 State
     var level by remember { mutableStateOf(1) }
     var type by remember { mutableStateOf("expense") } // "expense" = Outcome, "income" = Income
@@ -47,21 +48,31 @@ fun ManualLogBottomSheet(
     var note by remember { mutableStateOf("") }
     var showCreateCatDialog by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = CardBg,
-        scrimColor = Color.Black.copy(alpha = 0.65f),
-        dragHandle = {
-            BottomSheetDefaults.DragHandle(color = TextMuted)
-        }
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.70f))
+                .clickable(onClick = onDismissRequest),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .padding(top = 40.dp, bottom = 24.dp)
+                    .clickable(enabled = false, onClick = {}),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                border = CardDefaults.outlinedCardBorder(enabled = true)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
             if (level == 1) {
                 /* ================= LEVEL 1 VIEW ================= */
                 Text(
@@ -259,7 +270,7 @@ fun ManualLogBottomSheet(
                     OutlinedButton(
                         onClick = { level = 1 },
                         shape = RoundedCornerShape(8.dp),
-                        border = ButtonDefaults.outlinedToolBarBorder(enabled = true),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(14.dp), tint = EmeraldPrimary)
@@ -268,7 +279,7 @@ fun ManualLogBottomSheet(
                     }
                 }
 
-                Divider(color = BorderColor, modifier = Modifier.padding(bottom = 16.dp))
+                HorizontalDivider(color = BorderColor, modifier = Modifier.padding(bottom = 16.dp))
 
                 // Category Selector
                 Row(
@@ -296,7 +307,7 @@ fun ManualLogBottomSheet(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
-                        border = ButtonDefaults.outlinedToolBarBorder(enabled = true)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -433,6 +444,7 @@ fun ManualLogBottomSheet(
                         Text("Save Transaction", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+                }
             }
         }
     }
@@ -492,6 +504,5 @@ fun ManualLogBottomSheet(
         )
     }
 }
+}
 
-@Composable
-private fun ButtonDefaults.outlinedToolBarBorder(enabled: Boolean) = androidx.compose.foundation.BorderStroke(1.dp, BorderColor)

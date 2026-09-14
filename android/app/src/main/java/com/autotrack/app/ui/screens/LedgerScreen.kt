@@ -143,6 +143,18 @@ fun LedgerScreen(
                 val catName = catObj?.name ?: "Uncategorized"
                 val catIcon = catObj?.icon ?: "📦"
 
+                // Format timestamp
+                val formattedTime = remember(item.occurredAt) {
+                    try {
+                        val input = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                        val date = input.parse(item.occurredAt.take(19))
+                        val output = java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.US)
+                        if (date != null) output.format(date) else item.occurredAt.take(10)
+                    } catch (e: Exception) {
+                        item.occurredAt.take(10)
+                    }
+                }
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = CardBg),
                     shape = RoundedCornerShape(12.dp),
@@ -150,25 +162,25 @@ fun LedgerScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(40.dp)
                                     .background(DarkBg, RoundedCornerShape(10.dp))
                                     .border(1.dp, BorderColor, RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(catIcon, fontSize = 16.sp)
+                                Text(catIcon, fontSize = 18.sp)
                             }
 
-                            Column {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     text = item.receiverVendor?.ifBlank { catName } ?: catName,
-                                    fontSize = 13.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
@@ -176,6 +188,11 @@ fun LedgerScreen(
                                     Text(catName, fontSize = 10.sp, color = TextMuted)
                                     Text("•", fontSize = 10.sp, color = TextMuted)
                                     Text(item.sourceApp, fontSize = 10.sp, color = BlueAccent, fontWeight = FontWeight.Bold)
+                                    Text("•", fontSize = 10.sp, color = TextMuted)
+                                    Text(formattedTime, fontSize = 10.sp, color = TextMuted)
+                                }
+                                if (!item.note.isNullOrBlank()) {
+                                    Text("Note: ${item.note}", fontSize = 10.sp, color = TextMuted)
                                 }
                             }
                         }
@@ -183,7 +200,7 @@ fun LedgerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
                                 text = "${if (item.type == "income") "+" else "-"}₹${item.amount.toInt()}",
-                                fontSize = 14.sp,
+                                fontSize = 15.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
                                 color = if (item.type == "income") EmeraldPrimary else RoseExpense
