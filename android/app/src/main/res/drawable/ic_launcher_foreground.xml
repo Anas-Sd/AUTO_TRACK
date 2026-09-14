@@ -4,14 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Shield Outline & Pulse -->
+    <!-- Solid White Lightning Bolt -->
     <path
-        android:fillColor="#10B981"
-        android:pathData="M54,24 L34,33 L34,51 C34,66 43,79 54,84 C65,79 74,66 74,51 L74,33 Z" />
-    <path
-        android:fillColor="#0B0F17"
-        android:pathData="M54,30 L40,36.5 L40,51 C40,62.5 46.5,73 54,77 C61.5,73 68,62.5 68,51 L68,36.5 Z" />
-    <path
-        android:fillColor="#10B981"
-        android:pathData="M51,42 L47,54 L52,54 L50,66 L61,52 L55,52 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M56,26 L36,52 L54,52 L44,82 L68,50 L50,50 Z" />
 </vector>
