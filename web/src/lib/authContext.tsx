@@ -107,12 +107,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const getHeaders = useCallback(() => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  }, [token]);
+
   const refreshData = useCallback(async () => {
     if (!vaultCode) return;
 
     try {
       // 1. Fetch Categories
-      const catRes = await fetch("/api/vault/data?type=categories");
+      const catRes = await fetch("/api/vault/data?type=categories", { headers: getHeaders() });
       const catJson = await catRes.json();
       const catData: Category[] = catJson.data || [];
       const catsHash = JSON.stringify(catData);
@@ -122,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 2. Fetch Transactions
-      const txnRes = await fetch("/api/vault/data?type=transactions");
+      const txnRes = await fetch("/api/vault/data?type=transactions", { headers: getHeaders() });
       const txnJson = await txnRes.json();
       const txnData: Transaction[] = txnJson.data || [];
 
@@ -134,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Error refreshing vault data:", err);
     }
-  }, [vaultCode]);
+  }, [vaultCode, getHeaders]);
 
   useEffect(() => {
     if (!vaultCode) return;
@@ -224,7 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const res = await fetch("/api/vault/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ action: "insert", type: "transaction", payload }),
       });
       const json = await res.json();
@@ -244,7 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/vault/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ action: "update", type: "transaction", id, payload: txn }),
       });
       const json = await res.json();
@@ -264,7 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/vault/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ action: "delete", type: "transaction", id }),
       });
       const json = await res.json();
@@ -291,7 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const res = await fetch("/api/vault/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ action: "insert", type: "category", payload }),
       });
       const json = await res.json();
@@ -311,7 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/vault/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ action: "update", type: "category", id, payload: cat }),
       });
       const json = await res.json();
@@ -331,7 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch("/api/vault/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ action: "delete", type: "category", id }),
       });
       const json = await res.json();

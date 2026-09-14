@@ -3,8 +3,17 @@ import { cookies } from "next/headers";
 import { verifyVaultToken } from "@/lib/jwt";
 import { createClient } from "@supabase/supabase-js";
 
-async function getAuthenticatedVaultCode(): Promise<string | null> {
+async function getAuthenticatedVaultCode(req: Request): Promise<string | null> {
   try {
+    // 1. Check Authorization header (Bearer token)
+    const authHeader = req.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const bearerToken = authHeader.substring(7);
+      const payload = await verifyVaultToken(bearerToken);
+      if (payload?.vault_code) return payload.vault_code;
+    }
+
+    // 2. Fallback to session cookie
     const cookieStore = await cookies();
     const token = cookieStore.get("sb-vault-token")?.value;
     if (!token) return null;
@@ -23,7 +32,7 @@ function getServiceSupabase() {
 
 export async function GET(req: Request) {
   try {
-    const vaultCode = await getAuthenticatedVaultCode();
+    const vaultCode = await getAuthenticatedVaultCode(req);
     if (!vaultCode) {
       return NextResponse.json({ error: "Unauthorized vault session" }, { status: 401 });
     }
@@ -61,7 +70,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const vaultCode = await getAuthenticatedVaultCode();
+    const vaultCode = await getAuthenticatedVaultCode(req);
     if (!vaultCode) {
       return NextResponse.json({ error: "Unauthorized vault session" }, { status: 401 });
     }
