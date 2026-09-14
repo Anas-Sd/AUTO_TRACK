@@ -50,20 +50,31 @@ fun ManualLogBottomSheet(
 
     Dialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.70f))
-                .clickable(onClick = onDismissRequest),
+                .imePadding()
+                .statusBarsPadding(),
             contentAlignment = Alignment.TopCenter
         ) {
+            // Semi-transparent backdrop (tapping outside closes dialog)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.70f))
+                    .clickable(onClick = onDismissRequest)
+            )
+
+            // Top Floating Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth(0.94f)
-                    .padding(top = 40.dp, bottom = 24.dp)
-                    .clickable(enabled = false, onClick = {}),
+                    .padding(top = 36.dp, bottom = 16.dp),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
                 border = CardDefaults.outlinedCardBorder(enabled = true)

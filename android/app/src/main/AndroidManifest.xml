@@ -33,6 +33,24 @@
             android:exported="false"
             android:theme="@style/Theme.AutoTrack" />
 
+        <!-- Quick Log Floating Activity for Key Mapper & Deep Links -->
+        <activity
+            android:name=".QuickLogActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AutoTrack.Translucent"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="autotrack" android:host="log" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.autotrack.app.ACTION_QUICK_LOG" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>
