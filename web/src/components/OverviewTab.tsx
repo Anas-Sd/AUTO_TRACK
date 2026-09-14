@@ -318,9 +318,9 @@ export default function OverviewTab() {
                       {/* Remaining Opening Balance if set */}
                       {activeCategory.monthly_cap != null && activeCategory.monthly_cap > 0 && (
                         <div className="text-[9px] text-slate-400 mt-0.5">
-                          {activeCategory.monthly_cap - activeCategory.expense >= 0 ? (
+                          {activeCategory.monthly_cap + activeCategory.income - activeCategory.expense >= 0 ? (
                             <span className="text-slate-400">
-                              Rem Bal: <span className="text-emerald-400 font-semibold">₹{(activeCategory.monthly_cap - activeCategory.expense).toLocaleString("en-IN")}</span>
+                              Rem Bal: <span className="text-emerald-400 font-semibold">₹{(activeCategory.monthly_cap + activeCategory.income - activeCategory.expense).toLocaleString("en-IN")}</span>
                             </span>
                           ) : (
                             <span className="text-rose-400 font-semibold">

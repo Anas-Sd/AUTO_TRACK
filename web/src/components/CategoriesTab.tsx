@@ -117,8 +117,10 @@ export default function CategoriesTab() {
             const income = stats.income;
             const openingBalance = cat.monthly_cap;
             const hasBalance = openingBalance !== null && openingBalance !== undefined && openingBalance > 0;
-            const percent = hasBalance ? Math.min(Math.round((spent / openingBalance) * 100), 100) : 0;
-            const isOverBalance = hasBalance && spent > openingBalance;
+            const currentBalance = hasBalance ? openingBalance + income - spent : 0;
+            const netSpent = spent - income;
+            const percent = hasBalance ? Math.max(0, Math.min(Math.round((netSpent / openingBalance) * 100), 100)) : 0;
+            const isOverBalance = hasBalance && currentBalance < 0;
 
             return (
               <div
@@ -221,7 +223,7 @@ export default function CategoriesTab() {
                             {isOverBalance ? "⚠️ Over opening balance" : `${percent}% used`}
                           </span>
                           <span className="text-slate-500 font-mono">
-                            {hasBalance ? `Rem: ₹${(openingBalance - spent).toLocaleString("en-IN")}` : ""}
+                            {hasBalance ? `Rem: ₹${currentBalance.toLocaleString("en-IN")}` : ""}
                           </span>
                         </div>
                       </div>
