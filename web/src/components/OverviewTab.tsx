@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from "react";
 import { useAuth } from "@/lib/authContext";
-import ManualLogWidget from "./ManualLogWidget";
 import {
   TrendingUp,
   TrendingDown,
@@ -153,9 +152,6 @@ export default function OverviewTab() {
       onClick={handleContainerClick}
       className="space-y-5 pb-20 md:pb-8 flex flex-col"
     >
-      {/* 2-Level Manual Transaction Logging Widget (Top 1/3rd Area) */}
-      <ManualLogWidget />
-
       {/* Header & Filter Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 order-1">
         <div>

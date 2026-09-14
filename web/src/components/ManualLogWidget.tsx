@@ -8,6 +8,7 @@ import {
   TrendingDown,
   TrendingUp,
   ArrowRight,
+  ArrowLeft,
   Check,
   X,
   Plus,
@@ -210,9 +211,9 @@ export default function ManualLogWidget() {
             <button
               type="button"
               onClick={() => setLevel(1)}
-              className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
             >
-              Edit Amount
+              <ArrowLeft className="w-3 h-3 text-emerald-400" /> Back to Level 1
             </button>
           </div>
 
@@ -296,12 +297,28 @@ export default function ManualLogWidget() {
             </p>
           )}
 
-          {/* Action Row: Save and Cancel in the SAME row */}
+          {/* Action Row: Back, Cancel, and Save Transaction */}
           <div className="flex items-center gap-2 pt-1 border-t border-[#1E293B]">
             <button
               type="button"
               onClick={() => setLevel(1)}
-              className="flex-1 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1"
+              className="px-3 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" /> Back
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAmount("");
+                setType("expense");
+                setCategoryId("");
+                setPaymentMethod("UPI");
+                setNote("");
+                setLevel1Error(null);
+                setLevel(1);
+              }}
+              className="px-3 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-400 hover:text-slate-200 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
             >
               <X className="w-3.5 h-3.5" /> Cancel
             </button>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Category } from "@/lib/types";
-import { X, FolderPlus, Tag, Palette, DollarSign, Loader2 } from "lucide-react";
+import { X, FolderPlus, Tag, DollarSign, Loader2 } from "lucide-react";
 
 interface CategoryModalProps {
   isOpen: boolean;
@@ -14,11 +14,6 @@ interface CategoryModalProps {
 const PRESET_ICONS = [
   "🍔", "☕", "🛒", "🛍️", "⚡", "🚗", "🎬", "💊",
   "✈️", "🏠", "📚", "🏋️", "🎁", "📱", "🎮", "💰"
-];
-
-const PRESET_COLORS = [
-  "#10B981", "#3B82F6", "#8B5CF6", "#EC4899",
-  "#F59E0B", "#EF4444", "#06B6D4", "#64748B"
 ];
 
 export default function CategoryModal({
@@ -134,32 +129,6 @@ export default function CategoryModal({
             </div>
           </div>
 
-          {/* Color Selector */}
-          <div>
-            <label className="block font-medium text-slate-300 mb-1.5 flex items-center gap-1">
-              <Palette className="w-3.5 h-3.5 text-emerald-400" /> Color Accent
-            </label>
-            <div className="flex items-center gap-2 p-2 bg-[#0B0F17] rounded-xl border border-[#1E293B]">
-              {PRESET_COLORS.map((c) => (
-                <button
-                  type="button"
-                  key={c}
-                  onClick={() => setColor(c)}
-                  style={{ backgroundColor: c }}
-                  className={`w-6 h-6 rounded-full transition cursor-pointer ${
-                    color === c ? "ring-2 ring-white ring-offset-2 ring-offset-[#0B0F17]" : "opacity-80 hover:opacity-100"
-                  }`}
-                />
-              ))}
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-6 h-6 rounded-full bg-transparent border-none cursor-pointer ml-auto"
-                title="Custom color"
-              />
-            </div>
-          </div>
 
           {/* Opening Balance (Optional) */}
           <div>
