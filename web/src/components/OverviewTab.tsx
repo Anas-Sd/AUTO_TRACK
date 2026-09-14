@@ -77,6 +77,21 @@ export default function OverviewTab() {
 
   // Donut data: include both Expense & Income per category
   const donutData = useMemo(() => {
+    const CATEGORY_PALETTE = [
+      "#10B981", // Emerald
+      "#3B82F6", // Blue
+      "#F59E0B", // Amber
+      "#EC4899", // Pink
+      "#8B5CF6", // Purple
+      "#06B6D4", // Cyan
+      "#F97316", // Orange
+      "#6366F1", // Indigo
+      "#14B8A6", // Teal
+      "#EF4444", // Red
+      "#84CC16", // Lime
+      "#D946EF", // Fuchsia
+    ];
+
     const categoryMap: {
       [id: string]: {
         id: string;
@@ -90,13 +105,21 @@ export default function OverviewTab() {
       };
     } = {};
 
-    // Populate categories
-    categories.forEach((c) => {
+    const usedColors = new Set<string>();
+
+    // Populate categories with distinct colors
+    categories.forEach((c, idx) => {
+      let color = c.color;
+      if (!color || usedColors.has(color) || (color === "#10B981" && idx > 0)) {
+        color = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
+      }
+      usedColors.add(color);
+
       categoryMap[c.id] = {
         id: c.id,
         name: c.name,
         icon: c.icon || "🏷️",
-        color: c.color || "#10B981",
+        color,
         monthly_cap: c.monthly_cap || null,
         expense: 0,
         income: 0,
