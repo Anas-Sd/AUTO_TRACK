@@ -36,8 +36,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -247,6 +251,28 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                        if (down.position.y < 350f) {
+                            var accumulatedY = 0f
+                            do {
+                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull() ?: break
+                                val dy = change.positionChange().y
+                                if (dy > 0f) {
+                                    accumulatedY += dy
+                                    pullOffset = accumulatedY.coerceAtMost(180f)
+                                }
+                            } while (event.changes.any { it.pressed })
+
+                            if (pullOffset > 75f && !isRefreshing) {
+                                refreshData(isManualSwipe = true)
+                            }
+                        }
+                        pullOffset = 0f
+                    }
+                }
         ) {
             when (activeTab) {
                 "overview" -> OverviewScreen(transactions = transactions, categories = categories, userName = profileName)
@@ -349,30 +375,32 @@ fun MainScreen(
                 )
             }
 
-            if (isRefreshing || pullOffset > 20f) {
+            // Top-Center Circular Reload Progress Indicator Badge
+            if (isRefreshing || pullOffset > 15f) {
+                val offsetY = if (isRefreshing) 20.dp else (pullOffset / 2.5f).dp
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    contentAlignment = Alignment.Center
+                        .offset(y = offsetY),
+                    contentAlignment = Alignment.TopCenter
                 ) {
                     Surface(
                         color = CardBg,
                         shape = CircleShape,
-                        shadowElevation = 6.dp,
-                        border = BorderStroke(1.dp, EmeraldPrimary)
+                        shadowElevation = 8.dp,
+                        border = BorderStroke(1.5.dp, EmeraldPrimary)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .padding(10.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.fillMaxSize(),
                                 color = EmeraldPrimary,
-                                strokeWidth = 2.dp
+                                strokeWidth = 3.dp
                             )
-                            Text("Refreshing...", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

@@ -240,17 +240,18 @@ fun CategoriesScreen(
                                         color = TextMuted
                                     )
 
-                                    // Separate Edit Button
-                                    IconButton(
-                                        onClick = {
-                                            deletingCategory = null
-                                            showCreateCategoryDialog = false
-                                            editingCategory = cat
-                                        },
+                                    // Separate Edit Button Box
+                                    Box(
                                         modifier = Modifier
-                                            .size(34.dp)
-                                            .background(EmeraldPrimary.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                            .border(1.dp, EmeraldPrimary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                            .size(36.dp)
+                                            .background(EmeraldPrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                deletingCategory = null
+                                                showCreateCategoryDialog = false
+                                                editingCategory = cat
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
@@ -260,17 +261,18 @@ fun CategoriesScreen(
                                         )
                                     }
 
-                                    // Separate Delete Button
-                                    IconButton(
-                                        onClick = {
-                                            editingCategory = null
-                                            showCreateCategoryDialog = false
-                                            deletingCategory = cat
-                                        },
+                                    // Separate Delete Button Box
+                                    Box(
                                         modifier = Modifier
-                                            .size(34.dp)
-                                            .background(RoseExpense.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                            .border(1.dp, RoseExpense.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                            .size(36.dp)
+                                            .background(RoseExpense.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, RoseExpense.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                editingCategory = null
+                                                showCreateCategoryDialog = false
+                                                deletingCategory = cat
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
