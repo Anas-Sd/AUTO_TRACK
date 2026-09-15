@@ -43,8 +43,8 @@ fun CategoriesScreen(
     onDeleteCategory: (id: String) -> Unit = {}
 ) {
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
-    var editingCategoryId by remember { mutableStateOf<String?>(null) }
-    var deletingCategoryId by remember { mutableStateOf<String?>(null) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var deletingCategory by remember { mutableStateOf<Category?>(null) }
 
     val categoryStats = remember(transactions, categories) {
         val map = mutableMapOf<String, Pair<Double, Double>>() // categoryId -> (expense, income)
@@ -97,8 +97,8 @@ fun CategoriesScreen(
 
             Button(
                 onClick = {
-                    editingCategoryId = null
-                    deletingCategoryId = null
+                    editingCategory = null
+                    deletingCategory = null
                     showCreateCategoryDialog = true
                 },
                 shape = RoundedCornerShape(10.dp),
@@ -245,9 +245,9 @@ fun CategoriesScreen(
                                     // Clean Edit Button Pill
                                     Surface(
                                         onClick = {
-                                            deletingCategoryId = null
+                                            deletingCategory = null
                                             showCreateCategoryDialog = false
-                                            editingCategoryId = cat.id
+                                            editingCategory = cat
                                         },
                                         shape = RoundedCornerShape(8.dp),
                                         color = EmeraldPrimary.copy(alpha = 0.15f),
@@ -267,9 +267,9 @@ fun CategoriesScreen(
                                     // Clean Delete Button Pill
                                     Surface(
                                         onClick = {
-                                            editingCategoryId = null
+                                            editingCategory = null
                                             showCreateCategoryDialog = false
-                                            deletingCategoryId = cat.id
+                                            deletingCategory = cat
                                         },
                                         shape = RoundedCornerShape(8.dp),
                                         color = RoseExpense.copy(alpha = 0.15f),
@@ -499,158 +499,156 @@ fun CategoriesScreen(
         }
 
         // Edit Category Dialog Modal
-        if (editingCategoryId != null) {
-            val catToEdit = categories.find { it.id == editingCategoryId }
-            if (catToEdit != null) {
-                var editName by remember(catToEdit.id) { mutableStateOf(catToEdit.name) }
-                var editIcon by remember(catToEdit.id) { mutableStateOf(catToEdit.icon) }
-                var editCapText by remember(catToEdit.id) {
-                    mutableStateOf(catToEdit.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "")
-                }
-                var editError by remember { mutableStateOf<String?>(null) }
-                val quickIcons = listOf("🏷️", "🍔", "🛍️", "⚡", "🚗", "🎬", "💊", "💰", "📈", "🏠", "✈️", "🎮", "☕", "📱")
+        if (editingCategory != null) {
+            val catToEdit = editingCategory!!
+            var editName by remember(catToEdit.id) { mutableStateOf(catToEdit.name) }
+            var editIcon by remember(catToEdit.id) { mutableStateOf(catToEdit.icon) }
+            var editCapText by remember(catToEdit.id) {
+                mutableStateOf(catToEdit.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+            }
+            var editError by remember { mutableStateOf<String?>(null) }
+            val quickIcons = listOf("🏷️", "🍔", "🛍️", "⚡", "🚗", "🎬", "💊", "💰", "📈", "🏠", "✈️", "🎮", "☕", "📱")
 
-                Dialog(
-                    onDismissRequest = { editingCategoryId = null },
-                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            Dialog(
+                onDismissRequest = { editingCategory = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                        .statusBarsPadding(),
+                    contentAlignment = Alignment.Center
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .imePadding()
-                            .statusBarsPadding(),
-                        contentAlignment = Alignment.Center
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .clickable { editingCategory = null }
+                    )
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(0.88f)
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        border = CardDefaults.outlinedCardBorder(enabled = true)
                     ) {
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.75f))
-                                .clickable { editingCategoryId = null }
-                        )
-
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth(0.88f)
+                                .fillMaxWidth()
                                 .padding(16.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = CardBg),
-                            border = CardDefaults.outlinedCardBorder(enabled = true)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Edit Category", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    IconButton(onClick = { editingCategoryId = null }, modifier = Modifier.size(24.dp)) {
-                                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
-                                    }
+                                Text("Edit Category", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                IconButton(onClick = { editingCategory = null }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
                                 }
+                            }
 
-                                Column {
-                                    Text("Category Name", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    OutlinedTextField(
-                                        value = editName,
-                                        onValueChange = {
-                                            editName = it
-                                            editError = null
-                                        },
-                                        singleLine = true,
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedContainerColor = DarkBg,
-                                            unfocusedContainerColor = DarkBg,
-                                            focusedBorderColor = EmeraldPrimary,
-                                            unfocusedBorderColor = BorderColor,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
-                                        ),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                            Column {
+                                Text("Category Name", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = editName,
+                                    onValueChange = {
+                                        editName = it
+                                        editError = null
+                                    },
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = DarkBg,
+                                        unfocusedContainerColor = DarkBg,
+                                        focusedBorderColor = EmeraldPrimary,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
 
-                                Column {
-                                    Text("Choose Icon / Emoji", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        items(quickIcons) { ico ->
-                                            val isSelected = editIcon == ico
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(36.dp)
-                                                    .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else DarkBg, RoundedCornerShape(8.dp))
-                                                    .border(1.dp, if (isSelected) EmeraldPrimary else BorderColor, RoundedCornerShape(8.dp))
-                                                    .clickable { editIcon = ico },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(ico, fontSize = 18.sp)
-                                            }
+                            Column {
+                                Text("Choose Icon / Emoji", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(quickIcons) { ico ->
+                                        val isSelected = editIcon == ico
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else DarkBg, RoundedCornerShape(8.dp))
+                                                .border(1.dp, if (isSelected) EmeraldPrimary else BorderColor, RoundedCornerShape(8.dp))
+                                                .clickable { editIcon = ico },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(ico, fontSize = 18.sp)
                                         }
                                     }
                                 }
+                            }
 
-                                Column {
-                                    Text("Opening Balance / Cap (Optional ₹)", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    OutlinedTextField(
-                                        value = editCapText,
-                                        onValueChange = { editCapText = it },
-                                        placeholder = { Text("e.g. 5000", fontSize = 11.sp, color = TextMuted) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedContainerColor = DarkBg,
-                                            unfocusedContainerColor = DarkBg,
-                                            focusedBorderColor = EmeraldPrimary,
-                                            unfocusedBorderColor = BorderColor,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White
-                                        ),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                            Column {
+                                Text("Opening Balance / Cap (Optional ₹)", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = editCapText,
+                                    onValueChange = { editCapText = it },
+                                    placeholder = { Text("e.g. 5000", fontSize = 11.sp, color = TextMuted) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = DarkBg,
+                                        unfocusedContainerColor = DarkBg,
+                                        focusedBorderColor = EmeraldPrimary,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
 
-                                if (editError != null) {
-                                    Text(editError!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
-                                }
+                            if (editError != null) {
+                                Text(editError!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
+                            }
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { editingCategory = null },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, BorderColor)
                                 ) {
-                                    OutlinedButton(
-                                        onClick = { editingCategoryId = null },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        border = BorderStroke(1.dp, BorderColor)
-                                    ) {
-                                        Text("Cancel", color = TextMuted, fontSize = 12.sp)
-                                    }
+                                    Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                                }
 
-                                    Button(
-                                        onClick = {
-                                            if (editName.isBlank()) {
-                                                editError = "Enter category name"
-                                                return@Button
-                                            }
-                                            val capVal = editCapText.toDoubleOrNull()
-                                            onUpdateCategory(catToEdit.id, editName.trim(), editIcon, capVal)
-                                            editingCategoryId = null
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
-                                    ) {
-                                        Text("Save", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                Button(
+                                    onClick = {
+                                        if (editName.isBlank()) {
+                                            editError = "Enter category name"
+                                            return@Button
+                                        }
+                                        val capVal = editCapText.toDoubleOrNull()
+                                        onUpdateCategory(catToEdit.id, editName.trim(), editIcon, capVal)
+                                        editingCategory = null
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                                ) {
+                                    Text("Save", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -660,42 +658,40 @@ fun CategoriesScreen(
         }
 
         // Delete Category Confirmation Modal
-        if (deletingCategoryId != null) {
-            val catToDelete = categories.find { it.id == deletingCategoryId }
-            if (catToDelete != null) {
-                AlertDialog(
-                    onDismissRequest = { deletingCategoryId = null },
-                    title = {
-                        Text("Delete Category", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    },
-                    text = {
-                        Text(
-                            "Are you sure you want to delete category \"${catToDelete.name}\"?\n\nAll existing transactions under this category will automatically be moved to Uncategorized.",
-                            fontSize = 12.sp,
-                            color = TextMuted
-                        )
-                    },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                val targetId = catToDelete.id
-                                deletingCategoryId = null
-                                onDeleteCategory(targetId)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Delete", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { deletingCategoryId = null }) {
-                            Text("Cancel", color = TextMuted, fontSize = 12.sp)
-                        }
-                    },
-                    containerColor = CardBg
-                )
-            }
+        if (deletingCategory != null) {
+            val catToDelete = deletingCategory!!
+            AlertDialog(
+                onDismissRequest = { deletingCategory = null },
+                title = {
+                    Text("Delete Category", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text(
+                        "Are you sure you want to delete category \"${catToDelete.name}\"?\n\nAll existing transactions under this category will automatically be moved to Uncategorized.",
+                        fontSize = 12.sp,
+                        color = TextMuted
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val targetId = catToDelete.id
+                            deletingCategory = null
+                            onDeleteCategory(targetId)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Delete", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deletingCategory = null }) {
+                        Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                    }
+                },
+                containerColor = CardBg
+            )
         }
     }
 }
