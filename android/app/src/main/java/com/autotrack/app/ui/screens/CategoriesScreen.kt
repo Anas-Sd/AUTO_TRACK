@@ -43,8 +43,8 @@ fun CategoriesScreen(
     onDeleteCategory: (id: String) -> Unit = {}
 ) {
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
-    var editingCategory by remember { mutableStateOf<Category?>(null) }
-    var deletingCategory by remember { mutableStateOf<Category?>(null) }
+    var editingCategoryId by remember { mutableStateOf<String?>(null) }
+    var deletingCategoryId by remember { mutableStateOf<String?>(null) }
 
     val categoryStats = remember(transactions, categories) {
         val map = mutableMapOf<String, Pair<Double, Double>>() // categoryId -> (expense, income)
@@ -97,8 +97,8 @@ fun CategoriesScreen(
 
             Button(
                 onClick = {
-                    editingCategory = null
-                    deletingCategory = null
+                    editingCategoryId = null
+                    deletingCategoryId = null
                     showCreateCategoryDialog = true
                 },
                 shape = RoundedCornerShape(10.dp),
@@ -247,9 +247,9 @@ fun CategoriesScreen(
                                             .background(EmeraldPrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                                             .border(1.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                                             .clickable {
-                                                deletingCategory = null
+                                                deletingCategoryId = null
                                                 showCreateCategoryDialog = false
-                                                editingCategory = cat
+                                                editingCategoryId = cat.id
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -268,9 +268,9 @@ fun CategoriesScreen(
                                             .background(RoseExpense.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                                             .border(1.dp, RoseExpense.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                                             .clickable {
-                                                editingCategory = null
+                                                editingCategoryId = null
                                                 showCreateCategoryDialog = false
-                                                deletingCategory = cat
+                                                deletingCategoryId = cat.id
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -495,137 +495,148 @@ fun CategoriesScreen(
         }
 
         // Edit Category Dialog Modal
-        if (editingCategory != null) {
-            val catToEdit = editingCategory!!
-            var editName by remember(catToEdit.id) { mutableStateOf(catToEdit.name) }
-            var editIcon by remember(catToEdit.id) { mutableStateOf(catToEdit.icon) }
-            var editCapText by remember(catToEdit.id) {
-                mutableStateOf(catToEdit.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "")
-            }
-            var editError by remember { mutableStateOf<String?>(null) }
-            val quickIcons = listOf("🏷️", "🍔", "🛍️", "⚡", "🚗", "🎬", "💊", "💰", "📈", "🏠", "✈️", "🎮", "☕", "📱")
+        if (editingCategoryId != null) {
+            val catToEdit = categories.find { it.id == editingCategoryId }
+            if (catToEdit != null) {
+                var editName by remember(catToEdit.id) { mutableStateOf(catToEdit.name) }
+                var editIcon by remember(catToEdit.id) { mutableStateOf(catToEdit.icon) }
+                var editCapText by remember(catToEdit.id) {
+                    mutableStateOf(catToEdit.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+                }
+                var editError by remember { mutableStateOf<String?>(null) }
+                val quickIcons = listOf("🏷️", "🍔", "🛍️", "⚡", "🚗", "🎬", "💊", "💰", "📈", "🏠", "✈️", "🎮", "☕", "📱")
 
-            Dialog(
-                onDismissRequest = { editingCategory = null },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .wrapContentHeight(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = CardBg,
-                    border = BorderStroke(1.dp, BorderColor)
+                Dialog(
+                    onDismissRequest = { editingCategoryId = null },
+                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .clickable { editingCategoryId = null },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth(0.92f)
+                                .wrapContentHeight()
+                                .clickable(enabled = false) {},
+                            shape = RoundedCornerShape(20.dp),
+                            color = CardBg,
+                            border = BorderStroke(1.dp, BorderColor)
                         ) {
-                            Text("Edit Category", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            IconButton(onClick = { editingCategory = null }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
-                            }
-                        }
-
-                        Column {
-                            Text("Category Name", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            OutlinedTextField(
-                                value = editName,
-                                onValueChange = { editName = it },
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = DarkBg,
-                                    unfocusedContainerColor = DarkBg,
-                                    focusedBorderColor = EmeraldPrimary,
-                                    unfocusedBorderColor = BorderColor,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        Column {
-                            Text("Category Icon", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(quickIcons) { ico ->
-                                    val isSelected = editIcon == ico
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.2f) else DarkBg, RoundedCornerShape(8.dp))
-                                            .border(1.dp, if (isSelected) EmeraldPrimary else BorderColor, RoundedCornerShape(8.dp))
-                                            .clickable { editIcon = ico },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(ico, fontSize = 18.sp)
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Edit Category", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    IconButton(onClick = { editingCategoryId = null }, modifier = Modifier.size(24.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
                                     }
                                 }
-                            }
-                        }
 
-                        Column {
-                            Text("Opening Balance (Optional)", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            OutlinedTextField(
-                                value = editCapText,
-                                onValueChange = { editCapText = it },
-                                placeholder = { Text("e.g. 5000", fontSize = 11.sp, color = TextMuted) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = DarkBg,
-                                    unfocusedContainerColor = DarkBg,
-                                    focusedBorderColor = EmeraldPrimary,
-                                    unfocusedBorderColor = BorderColor,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                                Column {
+                                    Text("Category Name", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    OutlinedTextField(
+                                        value = editName,
+                                        onValueChange = { editName = it },
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = DarkBg,
+                                            unfocusedContainerColor = DarkBg,
+                                            focusedBorderColor = EmeraldPrimary,
+                                            unfocusedBorderColor = BorderColor,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
 
-                        if (editError != null) {
-                            Text(editError!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { editingCategory = null },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, BorderColor)
-                            ) {
-                                Text("Cancel", color = TextMuted, fontSize = 12.sp)
-                            }
-
-                            Button(
-                                onClick = {
-                                    if (editName.isBlank()) {
-                                        editError = "Enter category name"
-                                        return@Button
+                                Column {
+                                    Text("Category Icon", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(quickIcons) { ico ->
+                                            val isSelected = editIcon == ico
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.2f) else DarkBg, RoundedCornerShape(8.dp))
+                                                    .border(1.dp, if (isSelected) EmeraldPrimary else BorderColor, RoundedCornerShape(8.dp))
+                                                    .clickable { editIcon = ico },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(ico, fontSize = 18.sp)
+                                            }
+                                        }
                                     }
-                                    val capVal = editCapText.toDoubleOrNull()
-                                    onUpdateCategory(catToEdit.id, editName.trim(), editIcon, capVal)
-                                    editingCategory = null
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
-                            ) {
-                                Text("Save", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Column {
+                                    Text("Opening Balance (Optional)", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    OutlinedTextField(
+                                        value = editCapText,
+                                        onValueChange = { editCapText = it },
+                                        placeholder = { Text("e.g. 5000", fontSize = 11.sp, color = TextMuted) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = DarkBg,
+                                            unfocusedContainerColor = DarkBg,
+                                            focusedBorderColor = EmeraldPrimary,
+                                            unfocusedBorderColor = BorderColor,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                if (editError != null) {
+                                    Text(editError!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { editingCategoryId = null },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, BorderColor)
+                                    ) {
+                                        Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            if (editName.isBlank()) {
+                                                editError = "Enter category name"
+                                                return@Button
+                                            }
+                                            val capVal = editCapText.toDoubleOrNull()
+                                            onUpdateCategory(catToEdit.id, editName.trim(), editIcon, capVal)
+                                            editingCategoryId = null
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                                    ) {
+                                        Text("Save", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
@@ -634,39 +645,41 @@ fun CategoriesScreen(
         }
 
         // Delete Category Confirmation Modal
-        if (deletingCategory != null) {
-            val catToDelete = deletingCategory!!
-            AlertDialog(
-                onDismissRequest = { deletingCategory = null },
-                title = {
-                    Text("Delete Category", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                },
-                text = {
-                    Text(
-                        "Are you sure you want to delete category \"${catToDelete.name}\"? Existing transactions in this category will remain saved as Uncategorized.",
-                        fontSize = 12.sp,
-                        color = TextMuted
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            onDeleteCategory(catToDelete.id)
-                            deletingCategory = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Delete", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { deletingCategory = null }) {
-                        Text("Cancel", color = TextMuted, fontSize = 12.sp)
-                    }
-                },
-                containerColor = CardBg
-            )
+        if (deletingCategoryId != null) {
+            val catToDelete = categories.find { it.id == deletingCategoryId }
+            if (catToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { deletingCategoryId = null },
+                    title = {
+                        Text("Delete Category", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    },
+                    text = {
+                        Text(
+                            "Are you sure you want to delete category \"${catToDelete.name}\"? Existing transactions in this category will remain saved as Uncategorized.",
+                            fontSize = 12.sp,
+                            color = TextMuted
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                onDeleteCategory(catToDelete.id)
+                                deletingCategoryId = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Delete", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { deletingCategoryId = null }) {
+                            Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                        }
+                    },
+                    containerColor = CardBg
+                )
+            }
         }
     }
 }
