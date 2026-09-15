@@ -245,34 +245,10 @@ fun MainScreen(
             }
         }
     ) { innerPadding ->
-        var pullOffset by remember { mutableStateOf(0f) }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
-                        if (down.position.y < 350f) {
-                            var accumulatedY = 0f
-                            do {
-                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull() ?: break
-                                val dy = change.positionChange().y
-                                if (dy > 0f) {
-                                    accumulatedY += dy
-                                    pullOffset = accumulatedY.coerceAtMost(180f)
-                                }
-                            } while (event.changes.any { it.pressed })
-
-                            if (pullOffset > 75f && !isRefreshing) {
-                                refreshData(isManualSwipe = true)
-                            }
-                        }
-                        pullOffset = 0f
-                    }
-                }
         ) {
             when (activeTab) {
                 "overview" -> OverviewScreen(transactions = transactions, categories = categories, userName = profileName)
@@ -378,12 +354,11 @@ fun MainScreen(
             }
 
             // Top-Center Circular Reload Progress Indicator Badge
-            if (isRefreshing || pullOffset > 15f) {
-                val offsetY = if (isRefreshing) 20.dp else (pullOffset / 2.5f).dp
+            if (isRefreshing) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = offsetY),
+                        .offset(y = 20.dp),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Surface(

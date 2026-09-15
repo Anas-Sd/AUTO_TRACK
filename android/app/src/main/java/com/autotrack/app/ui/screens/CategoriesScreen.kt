@@ -240,18 +240,17 @@ fun CategoriesScreen(
                                         color = TextMuted
                                     )
 
-                                    // Separate Edit Button Box
-                                    Box(
+                                    // Separate Edit Button
+                                    IconButton(
+                                        onClick = {
+                                            deletingCategoryId = null
+                                            showCreateCategoryDialog = false
+                                            editingCategoryId = cat.id
+                                        },
                                         modifier = Modifier
                                             .size(36.dp)
                                             .background(EmeraldPrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                                             .border(1.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                deletingCategoryId = null
-                                                showCreateCategoryDialog = false
-                                                editingCategoryId = cat.id
-                                            },
-                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
@@ -261,18 +260,17 @@ fun CategoriesScreen(
                                         )
                                     }
 
-                                    // Separate Delete Button Box
-                                    Box(
+                                    // Separate Delete Button
+                                    IconButton(
+                                        onClick = {
+                                            editingCategoryId = null
+                                            showCreateCategoryDialog = false
+                                            deletingCategoryId = cat.id
+                                        },
                                         modifier = Modifier
                                             .size(36.dp)
                                             .background(RoseExpense.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                                             .border(1.dp, RoseExpense.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                editingCategoryId = null
-                                                showCreateCategoryDialog = false
-                                                deletingCategoryId = cat.id
-                                            },
-                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
