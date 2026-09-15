@@ -500,8 +500,9 @@ object DataSyncManager {
         color: String = "#10B981",
         monthlyCap: Double? = null
     ): Boolean = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext false
         try {
-            val url = "$SUPABASE_URL/rest/v1/categories?id=eq.$id"
+            val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&id=eq.$id"
             val payload = JSONObject().apply {
                 put("name", name)
                 put("icon", icon)
@@ -518,6 +519,9 @@ object DataSyncManager {
                 .build()
 
             val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                fetchCategories()
+            }
             return@withContext res.isSuccessful
         } catch (e: Exception) {
             return@withContext false
@@ -525,8 +529,26 @@ object DataSyncManager {
     }
 
     suspend fun deleteCategory(id: String): Boolean = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext false
         try {
-            val url = "$SUPABASE_URL/rest/v1/categories?id=eq.$id"
+            // Step 1: Data consistency — update all transactions belonging to this category to category_id = NULL (Uncategorized)
+            val patchTxUrl = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault&category_id=eq.$id"
+            val patchTxPayload = JSONObject().apply {
+                put("category_id", JSONObject.NULL)
+            }
+            val patchTxReq = Request.Builder()
+                .url(patchTxUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=minimal")
+                .patch(patchTxPayload.toString().toRequestBody(jsonMedia))
+                .build()
+
+            client.newCall(patchTxReq).execute()
+
+            // Step 2: Delete category from categories table
+            val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&id=eq.$id"
             val req = Request.Builder()
                 .url(url)
                 .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
@@ -535,6 +557,9 @@ object DataSyncManager {
                 .build()
 
             val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                fetchCategories()
+            }
             return@withContext res.isSuccessful
         } catch (e: Exception) {
             return@withContext false

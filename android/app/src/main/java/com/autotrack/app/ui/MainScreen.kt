@@ -321,12 +321,14 @@ fun MainScreen(
                             }
                         }
                     },
-                    onDeleteCategory = { id ->
+                    onDeleteCategory = { catId ->
                         scope.launch {
-                            val ok = DataSyncManager.deleteCategory(id)
+                            val ok = DataSyncManager.deleteCategory(catId)
                             if (ok) {
-                                Toast.makeText(context, "Category deleted!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Category deleted! All items moved to Uncategorized.", Toast.LENGTH_SHORT).show()
                                 refreshData()
+                            } else {
+                                Toast.makeText(context, "Failed to delete category", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }

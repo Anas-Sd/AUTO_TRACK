@@ -513,40 +513,51 @@ fun CategoriesScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .clickable { editingCategoryId = null },
+                            .imePadding()
+                            .statusBarsPadding(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Surface(
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth(0.92f)
-                                .wrapContentHeight()
-                                .clickable(enabled = false) {},
-                            shape = RoundedCornerShape(20.dp),
-                            color = CardBg,
-                            border = BorderStroke(1.dp, BorderColor)
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.75f))
+                                .clickable { editingCategoryId = null }
+                        )
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth(0.88f)
+                                .padding(16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardBg),
+                            border = CardDefaults.outlinedCardBorder(enabled = true)
                         ) {
                             Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Edit Category", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("Edit Category", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     IconButton(onClick = { editingCategoryId = null }, modifier = Modifier.size(24.dp)) {
                                         Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
                                     }
                                 }
 
                                 Column {
-                                    Text("Category Name", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    Text("Category Name", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     OutlinedTextField(
                                         value = editName,
-                                        onValueChange = { editName = it },
+                                        onValueChange = {
+                                            editName = it
+                                            editError = null
+                                        },
                                         singleLine = true,
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = DarkBg,
@@ -562,15 +573,15 @@ fun CategoriesScreen(
                                 }
 
                                 Column {
-                                    Text("Category Icon", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    Text("Choose Icon / Emoji", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         items(quickIcons) { ico ->
                                             val isSelected = editIcon == ico
                                             Box(
                                                 modifier = Modifier
                                                     .size(36.dp)
-                                                    .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.2f) else DarkBg, RoundedCornerShape(8.dp))
+                                                    .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else DarkBg, RoundedCornerShape(8.dp))
                                                     .border(1.dp, if (isSelected) EmeraldPrimary else BorderColor, RoundedCornerShape(8.dp))
                                                     .clickable { editIcon = ico },
                                                 contentAlignment = Alignment.Center
@@ -582,7 +593,7 @@ fun CategoriesScreen(
                                 }
 
                                 Column {
-                                    Text("Opening Balance (Optional)", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    Text("Opening Balance / Cap (Optional ₹)", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     OutlinedTextField(
                                         value = editCapText,
@@ -609,7 +620,7 @@ fun CategoriesScreen(
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     OutlinedButton(
                                         onClick = { editingCategoryId = null },
@@ -655,7 +666,7 @@ fun CategoriesScreen(
                     },
                     text = {
                         Text(
-                            "Are you sure you want to delete category \"${catToDelete.name}\"? Existing transactions in this category will remain saved as Uncategorized.",
+                            "Are you sure you want to delete category \"${catToDelete.name}\"?\n\nAll existing transactions under this category will automatically be moved to Uncategorized.",
                             fontSize = 12.sp,
                             color = TextMuted
                         )
@@ -663,8 +674,9 @@ fun CategoriesScreen(
                     confirmButton = {
                         Button(
                             onClick = {
-                                onDeleteCategory(catToDelete.id)
+                                val targetId = catToDelete.id
                                 deletingCategoryId = null
+                                onDeleteCategory(targetId)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
                             shape = RoundedCornerShape(8.dp)
