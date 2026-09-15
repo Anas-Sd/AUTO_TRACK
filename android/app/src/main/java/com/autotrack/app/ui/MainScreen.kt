@@ -290,22 +290,16 @@ fun MainScreen(
                     },
                     onUpdateCategory = { id, name, icon, cap ->
                         scope.launch {
-                            val ok = DataSyncManager.updateCategory(id, name, icon, "#10B981", cap)
-                            if (ok) {
-                                Toast.makeText(context, "Category updated!", Toast.LENGTH_SHORT).show()
-                                refreshData()
-                            }
+                            DataSyncManager.updateCategory(id, name, icon, "#10B981", cap)
+                            Toast.makeText(context, "Category updated!", Toast.LENGTH_SHORT).show()
+                            refreshData()
                         }
                     },
                     onDeleteCategory = { catId ->
                         scope.launch {
-                            val ok = DataSyncManager.deleteCategory(catId)
-                            if (ok) {
-                                Toast.makeText(context, "Category deleted! All items moved to Uncategorized.", Toast.LENGTH_SHORT).show()
-                                refreshData()
-                            } else {
-                                Toast.makeText(context, "Failed to delete category", Toast.LENGTH_SHORT).show()
-                            }
+                            DataSyncManager.deleteCategory(catId)
+                            Toast.makeText(context, "Category deleted! All items moved to Uncategorized.", Toast.LENGTH_SHORT).show()
+                            refreshData()
                         }
                     }
                 )

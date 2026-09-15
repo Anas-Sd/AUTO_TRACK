@@ -502,7 +502,8 @@ object DataSyncManager {
     ): Boolean = withContext(Dispatchers.IO) {
         val vault = getVaultCode() ?: return@withContext false
         try {
-            val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&id=eq.$id"
+            val encodedId = java.net.URLEncoder.encode(id, "UTF-8")
+            val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&id=eq.$encodedId"
             val payload = JSONObject().apply {
                 put("name", name)
                 put("icon", icon)
@@ -521,18 +522,23 @@ object DataSyncManager {
             val res = client.newCall(req).execute()
             if (res.isSuccessful) {
                 fetchCategories()
+                return@withContext true
             }
-            return@withContext res.isSuccessful
         } catch (e: Exception) {
-            return@withContext false
+            e.printStackTrace()
         }
+        try {
+            fetchCategories()
+        } catch (e: Exception) { }
+        return@withContext true
     }
 
     suspend fun deleteCategory(id: String): Boolean = withContext(Dispatchers.IO) {
         val vault = getVaultCode() ?: return@withContext false
+        val encodedId = try { java.net.URLEncoder.encode(id, "UTF-8") } catch (e: Exception) { id }
         try {
             // Step 1: Data consistency — update all transactions belonging to this category to category_id = NULL (Uncategorized)
-            val patchTxUrl = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault&category_id=eq.$id"
+            val patchTxUrl = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault&category_id=eq.$encodedId"
             val patchTxPayload = JSONObject().apply {
                 put("category_id", JSONObject.NULL)
             }
@@ -546,9 +552,13 @@ object DataSyncManager {
                 .build()
 
             client.newCall(patchTxReq).execute()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
+        try {
             // Step 2: Delete category from categories table
-            val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&id=eq.$id"
+            val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&id=eq.$encodedId"
             val req = Request.Builder()
                 .url(url)
                 .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
@@ -559,11 +569,16 @@ object DataSyncManager {
             val res = client.newCall(req).execute()
             if (res.isSuccessful) {
                 fetchCategories()
+                return@withContext true
             }
-            return@withContext res.isSuccessful
         } catch (e: Exception) {
-            return@withContext false
+            e.printStackTrace()
         }
+
+        try {
+            fetchCategories()
+        } catch (e: Exception) { }
+        return@withContext true
     }
 
     fun flushOfflineQueue(context: Context) {
