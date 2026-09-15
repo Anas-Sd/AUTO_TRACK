@@ -35,6 +35,10 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -45,17 +49,32 @@ fun MainScreen(
 
     var activeTab by remember { mutableStateOf("overview") } // "overview", "ledger", "categories", "settings"
     var isBottomSheetOpen by remember { mutableStateOf(false) }
+    var selectedLedgerCategoryFilter by remember { mutableStateOf<String?>(null) }
 
     var transactions by remember { mutableStateOf<List<TransactionItem>>(emptyList()) }
     var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
     var vaultCode by remember { mutableStateOf(DataSyncManager.getVaultCode() ?: "") }
+    var profileName by remember { mutableStateOf(DataSyncManager.getProfileName() ?: "") }
     var isLoading by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     // Fetch transactions & categories from Supabase
-    fun refreshData() {
+    fun refreshData(isManualSwipe: Boolean = false) {
         scope.launch(Dispatchers.IO) {
+            if (isManualSwipe) {
+                withContext(Dispatchers.Main) { isRefreshing = true }
+            }
+
+            if (DataSyncManager.isOnline(context)) {
+                val flushed = DataSyncManager.flushOfflineQueueSync(context)
+                if (flushed > 0) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Synced $flushed queued offline transaction(s)!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
             val vault = DataSyncManager.getVaultCode() ?: return@launch
-            val token = DataSyncManager.getSessionToken()
             val client = OkHttpClient()
 
             // Fetch Categories
@@ -129,14 +148,16 @@ fun MainScreen(
             withContext(Dispatchers.Main) {
                 categories = newCats
                 transactions = newTxs
+                isRefreshing = false
+                if (isManualSwipe) {
+                    Toast.makeText(context, "Data refreshed!", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
 
     LaunchedEffect(Unit) {
         refreshData()
-        // Auto-open manual log bottom sheet on Android launch
-        isBottomSheetOpen = true
     }
 
     Scaffold(
@@ -164,7 +185,10 @@ fun MainScreen(
 
                 NavigationBarItem(
                     selected = activeTab == "ledger",
-                    onClick = { activeTab = "ledger" },
+                    onClick = {
+                        activeTab = "ledger"
+                        selectedLedgerCategoryFilter = null
+                    },
                     icon = { Icon(Icons.Default.Receipt, contentDescription = "Ledger") },
                     label = { Text("Ledger", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                     colors = NavigationBarItemDefaults.colors(
@@ -217,32 +241,103 @@ fun MainScreen(
             }
         }
     ) { innerPadding ->
+        var pullOffset by remember { mutableStateOf(0f) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            if (dragAmount > 0 && !isRefreshing) {
+                                pullOffset = (pullOffset + dragAmount).coerceAtMost(180f)
+                            }
+                        },
+                        onDragEnd = {
+                            if (pullOffset > 90f && !isRefreshing) {
+                                refreshData(isManualSwipe = true)
+                            }
+                            pullOffset = 0f
+                        },
+                        onDragCancel = { pullOffset = 0f }
+                    )
+                }
         ) {
             when (activeTab) {
-                "overview" -> OverviewScreen(transactions = transactions, categories = categories)
+                "overview" -> OverviewScreen(transactions = transactions, categories = categories, userName = profileName)
                 "ledger" -> LedgerScreen(
                     transactions = transactions,
                     categories = categories,
+                    initialCategoryFilter = selectedLedgerCategoryFilter,
                     onDeleteTransaction = { txId ->
                         scope.launch {
                             DataSyncManager.deleteTransaction(txId)
                             refreshData()
                         }
+                    },
+                    onEditTransaction = { id, amount, type, vendor, categoryId, sourceApp, note ->
+                        scope.launch {
+                            val ok = DataSyncManager.updateTransaction(id, amount, type, vendor, categoryId, sourceApp, note)
+                            if (ok) {
+                                Toast.makeText(context, "Transaction updated!", Toast.LENGTH_SHORT).show()
+                                refreshData()
+                            }
+                        }
                     }
                 )
-                "categories" -> CategoriesScreen(categories = categories, transactions = transactions)
+                "categories" -> CategoriesScreen(
+                    categories = categories,
+                    transactions = transactions,
+                    onSelectCategory = { catId ->
+                        selectedLedgerCategoryFilter = catId
+                        activeTab = "ledger"
+                    },
+                    onCreateCategory = { name, icon, cap ->
+                        scope.launch {
+                            val ok = DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                            if (ok) {
+                                Toast.makeText(context, "Category created!", Toast.LENGTH_SHORT).show()
+                                refreshData()
+                            }
+                        }
+                    },
+                    onUpdateCategory = { id, name, icon, cap ->
+                        scope.launch {
+                            val ok = DataSyncManager.updateCategory(id, name, icon, "#10B981", cap)
+                            if (ok) {
+                                Toast.makeText(context, "Category updated!", Toast.LENGTH_SHORT).show()
+                                refreshData()
+                            }
+                        }
+                    },
+                    onDeleteCategory = { id ->
+                        scope.launch {
+                            val ok = DataSyncManager.deleteCategory(id)
+                            if (ok) {
+                                Toast.makeText(context, "Category deleted!", Toast.LENGTH_SHORT).show()
+                                refreshData()
+                            }
+                        }
+                    }
+                )
                 "settings" -> SettingsScreen(
                     vaultCode = vaultCode,
-                    onRotateCode = {
+                    profileName = profileName,
+                    onSaveProfileName = { newName ->
+                        DataSyncManager.saveProfileName(newName)
+                        profileName = newName
+                    },
+                    onRotateCode = { targetCode ->
                         scope.launch {
-                            val newCode = DataSyncManager.rotateVaultCode()
+                            val newCode = DataSyncManager.rotateVaultCode(targetCode)
                             if (newCode != null) {
                                 vaultCode = newCode
-                                refreshData()
+                                Toast.makeText(context, "Vault Code rotated to: $newCode. Please log in again.", Toast.LENGTH_LONG).show()
+                                DataSyncManager.clearVault()
+                                onLogoutRequest()
+                            } else {
+                                Toast.makeText(context, "Failed to rotate Vault Code", Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
@@ -255,8 +350,48 @@ fun MainScreen(
                     onLogout = {
                         DataSyncManager.clearVault()
                         onLogoutRequest()
+                    },
+                    onSyncQueue = {
+                        scope.launch {
+                            val synced = DataSyncManager.flushOfflineQueueSync(context)
+                            if (synced > 0) {
+                                Toast.makeText(context, "Synced $synced offline transaction(s)!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "No offline items to sync or currently offline", Toast.LENGTH_SHORT).show()
+                            }
+                            refreshData()
+                        }
                     }
                 )
+            }
+
+            if (isRefreshing || pullOffset > 20f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        color = CardBg,
+                        shape = CircleShape,
+                        shadowElevation = 6.dp,
+                        border = BorderStroke(1.dp, EmeraldPrimary)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = EmeraldPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Text("Refreshing...", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     }
@@ -268,7 +403,7 @@ fun MainScreen(
             categories = categories,
             onSaveTransaction = { amount, type, vendor, categoryId, method, note ->
                 scope.launch {
-                    val ok = DataSyncManager.saveTransaction(
+                    val saveRes = DataSyncManager.saveTransactionWithStatus(
                         context = context,
                         amount = amount,
                         type = type,
@@ -278,10 +413,14 @@ fun MainScreen(
                         note = note,
                         rawNotification = null
                     )
-                    if (ok) {
+                    if (saveRes == DataSyncManager.SaveResult.SAVED_ONLINE) {
                         Toast.makeText(context, "Transaction saved!", Toast.LENGTH_SHORT).show()
-                        refreshData()
+                    } else if (saveRes == DataSyncManager.SaveResult.QUEUED_OFFLINE) {
+                        Toast.makeText(context, "Transaction queued (offline)", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(context, "Failed to save transaction", Toast.LENGTH_SHORT).show()
                     }
+                    refreshData()
                 }
             },
             onCreateCategory = { name, icon, cap ->

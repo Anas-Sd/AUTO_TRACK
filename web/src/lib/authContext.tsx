@@ -30,7 +30,7 @@ interface AuthContextType {
   updateCategory: (id: string, cat: Partial<Category>) => Promise<boolean>;
   deleteCategory: (id: string) => Promise<boolean>;
   updateVaultLabel: (label: string) => Promise<boolean>;
-  rotateVaultCode: () => Promise<string | null>;
+  rotateVaultCode: (customCode?: string) => Promise<{ success: boolean; new_vault_code?: string; error?: string }>;
   wipeVaultData: () => Promise<boolean>;
   deleteVaultPermanently: () => Promise<boolean>;
 }
@@ -63,7 +63,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (nativeCode && nativeCode.length > 0) {
             const loginRes = await loginVault(nativeCode);
             if (loginRes.success) {
-              setLoading(false);
               return;
             }
           }
@@ -78,18 +77,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (typeof window !== "undefined" && (window as any).AndroidBridge?.setVaultCode) {
             (window as any).AndroidBridge.setVaultCode(data.vault_code);
           }
-          setLoading(false);
           return;
         }
 
         const savedCode = localStorage.getItem("autotrack_vault_code");
         if (savedCode) {
-          await loginVault(savedCode);
+          const loginRes = await loginVault(savedCode);
+          if (!loginRes.success) {
+            await logoutVault();
+          }
         } else {
-          setLoading(false);
+          await logoutVault();
         }
       } catch (err) {
         console.error("Init session error:", err);
+        await logoutVault();
+      } finally {
         setLoading(false);
       }
     }
@@ -115,13 +118,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return headers;
   }, [token]);
 
+  const logoutVault = useCallback(async () => {
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } catch (e) {
+      // ignore
+    }
+    setVaultCode(null);
+    setToken(null);
+    setCategories([]);
+    setTransactions([]);
+    setLoading(false);
+    localStorage.removeItem("autotrack_vault_code");
+    if (typeof window !== "undefined" && (window as any).AndroidBridge?.onLogout) {
+      (window as any).AndroidBridge.onLogout();
+    }
+  }, []);
+
   const refreshData = useCallback(async () => {
     if (!vaultCode) return;
 
     try {
       // 1. Fetch Categories
       const catRes = await fetch("/api/vault/data?type=categories", { headers: getHeaders() });
+      if (catRes.status === 401) {
+        await logoutVault();
+        return;
+      }
       const catJson = await catRes.json();
+      if (catJson.error === "Unauthorized vault session") {
+        await logoutVault();
+        return;
+      }
       const catData: Category[] = catJson.data || [];
       const catsHash = JSON.stringify(catData);
       if (catsHash !== prevCatsRef.current) {
@@ -131,7 +159,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Fetch Transactions
       const txnRes = await fetch("/api/vault/data?type=transactions", { headers: getHeaders() });
+      if (txnRes.status === 401) {
+        await logoutVault();
+        return;
+      }
       const txnJson = await txnRes.json();
+      if (txnJson.error === "Unauthorized vault session") {
+        await logoutVault();
+        return;
+      }
       const txnData: Transaction[] = txnJson.data || [];
 
       const txnsHash = JSON.stringify(txnData);
@@ -142,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Error refreshing vault data:", err);
     }
-  }, [vaultCode, getHeaders]);
+  }, [vaultCode, getHeaders, logoutVault]);
 
   useEffect(() => {
     if (!vaultCode) return;
@@ -177,9 +213,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         return { success: true };
       }
+      localStorage.removeItem("autotrack_vault_code");
       return { success: false, error: data.error || "Invalid vault code" };
     } catch (err: any) {
       console.error("Login vault error:", err);
+      localStorage.removeItem("autotrack_vault_code");
       return { success: false, error: err.message || "Network error" };
     }
   };
@@ -197,22 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Create vault error:", err);
       return null;
-    }
-  };
-
-  const logoutVault = async () => {
-    try {
-      await fetch("/api/logout", { method: "POST" });
-    } catch (e) {
-      // ignore
-    }
-    setVaultCode(null);
-    setToken(null);
-    setCategories([]);
-    setTransactions([]);
-    localStorage.removeItem("autotrack_vault_code");
-    if (typeof window !== "undefined" && (window as any).AndroidBridge?.onLogout) {
-      (window as any).AndroidBridge.onLogout();
     }
   };
 
@@ -373,25 +395,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const rotateVaultCode = async (): Promise<string | null> => {
-    if (!vaultCode) return null;
+  const rotateVaultCode = async (customCode?: string): Promise<{ success: boolean; new_vault_code?: string; error?: string }> => {
+    if (!vaultCode) return { success: false, error: "Not logged in" };
     try {
       const res = await fetch("/api/vault/rotate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customCode }),
       });
       const json = await res.json();
-      if (json.success && json.new_vault_code) {
-        setVaultCode(json.new_vault_code);
-        if (json.label) setVaultLabel(json.label);
-        localStorage.setItem("autotrack_vault_code", json.new_vault_code);
-        await refreshData();
-        return json.new_vault_code;
+      if (res.ok && json.success && json.new_vault_code) {
+        await logoutVault();
+        return { success: true, new_vault_code: json.new_vault_code };
       }
-      return null;
-    } catch (err) {
+      return { success: false, error: json.error || "Failed to rotate vault code" };
+    } catch (err: any) {
       console.error("Rotate vault code error:", err);
-      return null;
+      return { success: false, error: err.message || "Network error" };
     }
   };
 

@@ -348,17 +348,14 @@ export default function LedgerTab() {
             {(selectedCategory !== "all" ||
               selectedType !== "all" ||
               selectedSource !== "all" ||
-              selectedReceiver !== "all" ||
-              selectedSender !== "all" ||
               timeframe !== "all") && (
                 <button
                   onClick={() => {
                     setSelectedCategory("all");
                     setSelectedType("all");
                     setSelectedSource("all");
-                    setSelectedReceiver("all");
-                    setSelectedSender("all");
                     setTimeframe("all");
+                    setIsFilterOpen(false);
                   }}
                   className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer font-medium"
                 >
@@ -423,8 +420,8 @@ export default function LedgerTab() {
             )}
           </div>
 
-          {/* 5 Dropdowns Grid (2 Columns on Mobile, 5 Columns on Laptop) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {/* 3 Dropdowns Grid (Category, Type, Source) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Category Dropdown */}
             <div>
               <label className="block text-[10px] sm:text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1">
@@ -475,38 +472,6 @@ export default function LedgerTab() {
                 options={[
                   { value: "all", label: "All Sources" },
                   ...availableSources.map((s) => ({ value: s, label: s })),
-                ]}
-              />
-            </div>
-
-            {/* Receiver (Outgoing / Payments Sent) Dropdown */}
-            <div>
-              <label className="block text-[10px] sm:text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1 truncate">
-                <Building className="w-3 h-3 text-rose-400 shrink-0" /> Receiver (Out)
-              </label>
-              <CustomSelect
-                value={selectedReceiver}
-                onChange={(val) => setSelectedReceiver(val)}
-                className="w-full"
-                options={[
-                  { value: "all", label: "All Receivers" },
-                  ...availableReceivers.map((r) => ({ value: r, label: r })),
-                ]}
-              />
-            </div>
-
-            {/* Sender (Incoming / Amounts Received) Dropdown */}
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-[10px] sm:text-[11px] font-medium text-slate-400 mb-1 flex items-center gap-1 truncate">
-                <Building className="w-3 h-3 text-emerald-400 shrink-0" /> Sender (In)
-              </label>
-              <CustomSelect
-                value={selectedSender}
-                onChange={(val) => setSelectedSender(val)}
-                className="w-full"
-                options={[
-                  { value: "all", label: "All Senders" },
-                  ...availableSenders.map((s) => ({ value: s, label: s })),
                 ]}
               />
             </div>
@@ -719,10 +684,20 @@ export default function LedgerTab() {
                       </td>
 
                       {/* Source */}
-                      <td className="py-3 px-3 whitespace-nowrap text-slate-400">
-                        <span className="px-2 py-0.5 rounded-md bg-[#0B0F17] text-[11px] border border-[#1E293B]">
-                          {t.source_app || "Manual"}
-                        </span>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        {t.source_app === "UPI" ? (
+                          <span className="px-2.5 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[11px] font-bold">
+                            UPI
+                          </span>
+                        ) : t.source_app === "Cash" ? (
+                          <span className="px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[11px] font-bold">
+                            Cash
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-[#0B0F17] text-slate-400 border border-[#1E293B] text-[11px]">
+                            {t.source_app || "Manual"}
+                          </span>
+                        )}
                       </td>
 
                       {/* Date */}

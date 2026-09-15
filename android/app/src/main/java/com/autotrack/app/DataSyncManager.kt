@@ -35,6 +35,7 @@ object DataSyncManager {
     private const val KEY_SESSION_TOKEN = "session_token"
     private const val KEY_ALLOWED_PACKAGES = "allowed_packages"
     private const val KEY_CACHED_CATEGORIES = "cached_categories"
+    private const val KEY_PROFILE_NAME = "profile_name"
     private lateinit var prefs: SharedPreferences
     private lateinit var dbHelper: OfflineQueueDbHelper
     private val client = OkHttpClient.Builder()
@@ -45,31 +46,81 @@ object DataSyncManager {
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     fun init(context: Context) {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        prefs = EncryptedSharedPreferences.create(
-            PREFS_FILE,
-            masterKeyAlias,
-            context,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-        dbHelper = OfflineQueueDbHelper(context)
+        if (::prefs.isInitialized && ::dbHelper.isInitialized) return
+        try {
+            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            prefs = EncryptedSharedPreferences.create(
+                PREFS_FILE,
+                masterKeyAlias,
+                context.applicationContext,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            try {
+                context.applicationContext.deleteSharedPreferences(PREFS_FILE)
+                val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+                prefs = EncryptedSharedPreferences.create(
+                    PREFS_FILE,
+                    masterKeyAlias,
+                    context.applicationContext,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e2: Exception) {
+                prefs = context.applicationContext.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
+            }
+        }
+        try {
+            dbHelper = OfflineQueueDbHelper(context.applicationContext)
+        } catch (e: Exception) {
+            // ignore
+        }
     }
 
-    fun getVaultCode(): String? = prefs.getString(KEY_VAULT_CODE, null)
+    private fun ensureInit() {
+        if (!::prefs.isInitialized || !::dbHelper.isInitialized) {
+            try {
+                init(AutoTrackApp.instance)
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+    }
+
+    fun getProfileName(): String {
+        ensureInit()
+        return if (::prefs.isInitialized) prefs.getString(KEY_PROFILE_NAME, "User") ?: "User" else "User"
+    }
+
+    fun saveProfileName(name: String) {
+        ensureInit()
+        if (::prefs.isInitialized) prefs.edit().putString(KEY_PROFILE_NAME, name.trim()).apply()
+    }
+
+    fun getVaultCode(): String? {
+        ensureInit()
+        return if (::prefs.isInitialized) prefs.getString(KEY_VAULT_CODE, null) else null
+    }
 
     fun saveVaultCode(code: String) {
-        prefs.edit().putString(KEY_VAULT_CODE, code.trim().toUpperCase(Locale.ROOT)).apply()
+        ensureInit()
+        if (::prefs.isInitialized) prefs.edit().putString(KEY_VAULT_CODE, code.trim().uppercase(Locale.ROOT)).apply()
     }
 
-    fun getSessionToken(): String? = prefs.getString(KEY_SESSION_TOKEN, null)
+    fun getSessionToken(): String? {
+        ensureInit()
+        return if (::prefs.isInitialized) prefs.getString(KEY_SESSION_TOKEN, null) else null
+    }
 
     fun saveSessionToken(token: String) {
-        prefs.edit().putString(KEY_SESSION_TOKEN, token).apply()
+        ensureInit()
+        if (::prefs.isInitialized) prefs.edit().putString(KEY_SESSION_TOKEN, token).apply()
     }
 
     fun clearVault() {
-        prefs.edit().remove(KEY_VAULT_CODE).remove(KEY_SESSION_TOKEN).apply()
+        ensureInit()
+        if (::prefs.isInitialized) prefs.edit().remove(KEY_VAULT_CODE).remove(KEY_SESSION_TOKEN).apply()
     }
 
     fun getAllowedPackages(): Set<String> {
@@ -254,7 +305,45 @@ object DataSyncManager {
         }
     }
 
-    suspend fun saveTransaction(
+    enum class SaveResult {
+        SAVED_ONLINE,
+        QUEUED_OFFLINE,
+        FAILED
+    }
+
+    fun getPendingOfflineQueue(): List<Pair<Long, JSONObject>> {
+        return if (::dbHelper.isInitialized) dbHelper.getPendingTransactions() else emptyList()
+    }
+
+    suspend fun flushOfflineQueueSync(context: Context): Int = withContext(Dispatchers.IO) {
+        if (!isOnline(context)) return@withContext 0
+        if (!::dbHelper.isInitialized) return@withContext 0
+        val pending = dbHelper.getPendingTransactions()
+        var syncedCount = 0
+        for ((id, payload) in pending) {
+            try {
+                val url = "$SUPABASE_URL/rest/v1/transactions"
+                val reqBuilder = Request.Builder()
+                    .url(url)
+                    .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                    .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .addHeader("Prefer", "return=minimal")
+                    .post(payload.toString().toRequestBody(jsonMedia))
+
+                val res = client.newCall(reqBuilder.build()).execute()
+                if (res.isSuccessful) {
+                    dbHelper.removeTransaction(id)
+                    syncedCount++
+                }
+            } catch (e: Exception) {
+                break
+            }
+        }
+        syncedCount
+    }
+
+    suspend fun saveTransactionWithStatus(
         context: Context,
         amount: Double,
         type: String,
@@ -263,8 +352,8 @@ object DataSyncManager {
         sourceApp: String,
         note: String?,
         rawNotification: String?
-    ): Boolean = withContext(Dispatchers.IO) {
-        val vault = getVaultCode() ?: return@withContext false
+    ): SaveResult = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext SaveResult.FAILED
 
         val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
@@ -285,7 +374,7 @@ object DataSyncManager {
         // If offline, enqueue immediately
         if (!isOnline(context)) {
             dbHelper.enqueueTransaction(payload)
-            return@withContext true
+            return@withContext SaveResult.QUEUED_OFFLINE
         }
 
         val url = "$SUPABASE_URL/rest/v1/transactions"
@@ -300,18 +389,30 @@ object DataSyncManager {
         try {
             val res = client.newCall(reqBuilder.build()).execute()
             if (res.isSuccessful) {
-                // Also trigger flush if there are pending offline transactions
                 flushOfflineQueue(context)
-                return@withContext true
+                return@withContext SaveResult.SAVED_ONLINE
             } else {
-                // If rejected by network/auth, queue for retry
                 dbHelper.enqueueTransaction(payload)
-                return@withContext true
+                return@withContext SaveResult.QUEUED_OFFLINE
             }
         } catch (e: Exception) {
             dbHelper.enqueueTransaction(payload)
-            return@withContext true
+            return@withContext SaveResult.QUEUED_OFFLINE
         }
+    }
+
+    suspend fun saveTransaction(
+        context: Context,
+        amount: Double,
+        type: String,
+        vendor: String?,
+        categoryId: String?,
+        sourceApp: String,
+        note: String?,
+        rawNotification: String?
+    ): Boolean {
+        val res = saveTransactionWithStatus(context, amount, type, vendor, categoryId, sourceApp, note, rawNotification)
+        return res != SaveResult.FAILED
     }
 
     suspend fun deleteTransaction(id: String): Boolean = withContext(Dispatchers.IO) {
@@ -322,6 +423,41 @@ object DataSyncManager {
                 .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
                 .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
                 .delete()
+                .build()
+
+            val res = client.newCall(req).execute()
+            return@withContext res.isSuccessful
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
+
+    suspend fun updateTransaction(
+        id: String,
+        amount: Double,
+        type: String,
+        vendor: String?,
+        categoryId: String?,
+        sourceApp: String,
+        note: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = "$SUPABASE_URL/rest/v1/transactions?id=eq.$id"
+            val payload = JSONObject().apply {
+                put("amount", amount)
+                put("type", type)
+                put("category_id", categoryId ?: JSONObject.NULL)
+                put("receiver_vendor", vendor ?: JSONObject.NULL)
+                put("source_app", sourceApp)
+                put("note", note ?: JSONObject.NULL)
+            }
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=minimal")
+                .patch(payload.toString().toRequestBody(jsonMedia))
                 .build()
 
             val res = client.newCall(req).execute()
@@ -357,30 +493,59 @@ object DataSyncManager {
         }
     }
 
+    suspend fun updateCategory(
+        id: String,
+        name: String,
+        icon: String,
+        color: String = "#10B981",
+        monthlyCap: Double? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = "$SUPABASE_URL/rest/v1/categories?id=eq.$id"
+            val payload = JSONObject().apply {
+                put("name", name)
+                put("icon", icon)
+                put("color", color)
+                put("monthly_cap", monthlyCap ?: JSONObject.NULL)
+            }
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=minimal")
+                .patch(payload.toString().toRequestBody(jsonMedia))
+                .build()
+
+            val res = client.newCall(req).execute()
+            return@withContext res.isSuccessful
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
+
+    suspend fun deleteCategory(id: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val url = "$SUPABASE_URL/rest/v1/categories?id=eq.$id"
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+
+            val res = client.newCall(req).execute()
+            return@withContext res.isSuccessful
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
+
     fun flushOfflineQueue(context: Context) {
         if (!isOnline(context)) return
 
         CoroutineScope(Dispatchers.IO).launch {
-            val pending = dbHelper.getPendingTransactions()
-            for ((id, payload) in pending) {
-                try {
-                    val url = "$SUPABASE_URL/rest/v1/transactions"
-                    val reqBuilder = Request.Builder()
-                        .url(url)
-                        .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
-                        .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
-                        .addHeader("Content-Type", "application/json")
-                        .addHeader("Prefer", "return=minimal")
-                        .post(payload.toString().toRequestBody(jsonMedia))
-
-                    val res = client.newCall(reqBuilder.build()).execute()
-                    if (res.isSuccessful) {
-                        dbHelper.removeTransaction(id)
-                    }
-                } catch (e: Exception) {
-                    break // Stop on connection drop
-                }
-            }
+            flushOfflineQueueSync(context)
         }
     }
 
@@ -390,31 +555,91 @@ object DataSyncManager {
         return cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    suspend fun rotateVaultCode(): String? = withContext(Dispatchers.IO) {
-        val vault = getVaultCode() ?: return@withContext null
-        val token = getSessionToken()
-        val url = "$SUPABASE_URL/functions/v1/vault/rotate"
-        val reqBuilder = Request.Builder()
-            .url(url)
-            .addHeader("apikey", SUPABASE_ANON_KEY)
-            .post("{}".toRequestBody(jsonMedia))
-        if (!token.isNullOrEmpty()) {
-            reqBuilder.addHeader("Authorization", "Bearer $token")
-        }
-        try {
-            val res = client.newCall(reqBuilder.build()).execute()
-            if (res.isSuccessful) {
-                val json = JSONObject(res.body?.string() ?: "{}")
-                val newCode = json.optString("new_code", "")
-                if (newCode.isNotEmpty()) {
-                    saveVaultCode(newCode)
-                    return@withContext newCode
-                }
+    suspend fun rotateVaultCode(targetCode: String? = null): String? = withContext(Dispatchers.IO) {
+        val oldVault = getVaultCode() ?: return@withContext null
+
+        val newVault = if (!targetCode.isNullOrBlank()) {
+            targetCode.trim().uppercase(Locale.ROOT)
+        } else {
+            val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+            val sb = StringBuilder()
+            for (i in 0 until 8) {
+                sb.append(chars[(Math.random() * chars.length).toInt()])
             }
-        } catch (e: Exception) {
-            // ignore
+            sb.toString()
         }
-        null
+
+        try {
+            // 1. Create new vault code entry in Supabase database
+            val vaultUrl = "$SUPABASE_URL/rest/v1/vault_codes"
+            val vaultPayload = JSONObject().apply {
+                put("code", newVault)
+                put("label", "My Vault")
+            }
+            val vaultReq = Request.Builder()
+                .url(vaultUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=minimal")
+                .post(vaultPayload.toString().toRequestBody(jsonMedia))
+                .build()
+
+            val vaultRes = client.newCall(vaultReq).execute()
+            if (!vaultRes.isSuccessful && vaultRes.code != 409) {
+                return@withContext null
+            }
+
+            // 2. Re-link all transactions in database from oldVault -> newVault
+            val txUrl = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$oldVault"
+            val txPayload = JSONObject().apply {
+                put("vault_code", newVault)
+            }
+            val txReq = Request.Builder()
+                .url(txUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=minimal")
+                .patch(txPayload.toString().toRequestBody(jsonMedia))
+                .build()
+
+            client.newCall(txReq).execute()
+
+            // 3. Re-link all categories in database from oldVault -> newVault
+            val catUrl = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$oldVault"
+            val catPayload = JSONObject().apply {
+                put("vault_code", newVault)
+            }
+            val catReq = Request.Builder()
+                .url(catUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=minimal")
+                .patch(catPayload.toString().toRequestBody(jsonMedia))
+                .build()
+
+            client.newCall(catReq).execute()
+
+            // 4. Remove old vault code entry
+            val delUrl = "$SUPABASE_URL/rest/v1/vault_codes?code=eq.$oldVault"
+            val delReq = Request.Builder()
+                .url(delUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+
+            client.newCall(delReq).execute()
+
+            // 5. Update local state & session
+            saveVaultCode(newVault)
+            issueVaultSession(newVault)
+            newVault
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun wipeVaultData(): Boolean = withContext(Dispatchers.IO) {

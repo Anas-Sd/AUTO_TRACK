@@ -4,8 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Solid White Lightning Bolt -->
+    <!-- Solid Thick White Lightning Bolt -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M56,26 L36,52 L54,52 L44,82 L68,50 L50,50 Z" />
+        android:pathData="M56,20 L28,54 L53,54 L41,88 L74,48 L49,48 Z" />
 </vector>

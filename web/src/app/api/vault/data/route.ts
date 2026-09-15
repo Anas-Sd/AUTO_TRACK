@@ -5,20 +5,37 @@ import { createClient } from "@supabase/supabase-js";
 
 async function getAuthenticatedVaultCode(req: Request): Promise<string | null> {
   try {
+    let code: string | null = null;
+
     // 1. Check Authorization header (Bearer token)
     const authHeader = req.headers.get("authorization");
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const bearerToken = authHeader.substring(7);
       const payload = await verifyVaultToken(bearerToken);
-      if (payload?.vault_code) return payload.vault_code;
+      if (payload?.vault_code) code = payload.vault_code;
     }
 
     // 2. Fallback to session cookie
-    const cookieStore = await cookies();
-    const token = cookieStore.get("sb-vault-token")?.value;
-    if (!token) return null;
-    const payload = await verifyVaultToken(token);
-    return payload?.vault_code || null;
+    if (!code) {
+      const cookieStore = await cookies();
+      const token = cookieStore.get("sb-vault-token")?.value;
+      if (token) {
+        const payload = await verifyVaultToken(token);
+        if (payload?.vault_code) code = payload.vault_code;
+      }
+    }
+
+    if (!code) return null;
+
+    // 3. Verify vault code actually exists in database
+    const supabase = getServiceSupabase();
+    const { data: vault } = await supabase
+      .from("vault_codes")
+      .select("code")
+      .eq("code", code)
+      .maybeSingle();
+
+    return vault?.code || null;
   } catch (e) {
     return null;
   }

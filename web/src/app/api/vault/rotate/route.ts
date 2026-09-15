@@ -30,12 +30,15 @@ function generateRandomCode(): string {
   return code;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const oldVaultCode = await getAuthenticatedVaultCode();
     if (!oldVaultCode) {
       return NextResponse.json({ error: "Unauthorized vault session" }, { status: 401 });
     }
+
+    const body = await req.json().catch(() => ({}));
+    const customCode = (body.customCode || "").toString().trim().toUpperCase();
 
     const supabase = getServiceSupabase();
 
@@ -50,18 +53,35 @@ export async function POST() {
       return NextResponse.json({ error: "Current vault code is invalid or expired" }, { status: 404 });
     }
 
-    // 2. Generate a unique new Vault Code
-    let newVaultCode = generateRandomCode();
-    let attempts = 0;
-    while (attempts < 5) {
+    // 2. Determine new Vault Code (custom vs generated)
+    let newVaultCode = customCode;
+
+    if (newVaultCode) {
+      if (newVaultCode.length < 4 || newVaultCode.length > 20) {
+        return NextResponse.json({ error: "Vault code must be between 4 and 20 characters long" }, { status: 400 });
+      }
       const { data: existing } = await supabase
         .from("vault_codes")
         .select("code")
         .eq("code", newVaultCode)
-        .single();
-      if (!existing) break;
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json({ error: "Vault code already exists. Please choose a different code." }, { status: 400 });
+      }
+    } else {
       newVaultCode = generateRandomCode();
-      attempts++;
+      let attempts = 0;
+      while (attempts < 5) {
+        const { data: existing } = await supabase
+          .from("vault_codes")
+          .select("code")
+          .eq("code", newVaultCode)
+          .maybeSingle();
+        if (!existing) break;
+        newVaultCode = generateRandomCode();
+        attempts++;
+      }
     }
 
     // 3. Step A: Insert new vault code entry with same label

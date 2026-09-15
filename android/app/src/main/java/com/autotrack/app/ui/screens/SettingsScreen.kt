@@ -4,21 +4,15 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,21 +21,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.autotrack.app.DataSyncManager
 import com.autotrack.app.ui.theme.*
 
 @Composable
 fun SettingsScreen(
     vaultCode: String,
-    onRotateCode: () -> Unit,
+    profileName: String,
+    onSaveProfileName: (String) -> Unit,
+    onRotateCode: (customCode: String?) -> Unit,
     onWipeData: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSyncQueue: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showCode by remember { mutableStateOf(false) }
     var showRotateDialog by remember { mutableStateOf(false) }
     var showWipeDialog by remember { mutableStateOf(false) }
+
+    var nameInput by remember { mutableStateOf(profileName) }
 
     LazyColumn(
         modifier = Modifier
@@ -50,17 +51,73 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 90.dp)
     ) {
+        // 1. Header Title
         item {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.Settings, contentDescription = null, tint = EmeraldPrimary)
                     Text("Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
-                Text("Manage vault profile, vault code security, and diagnostics", fontSize = 11.sp, color = TextMuted)
+                Text("Manage profile name, vault code security, and diagnostics", fontSize = 11.sp, color = TextMuted)
             }
         }
 
-        // Vault Access Code Card (Displayed in Android App)
+        // 2. Profile Name Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = CardDefaults.outlinedCardBorder(enabled = true),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(16.dp))
+                        Text("Profile Name", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Text("Displayed on top of the Financial Overview screen", fontSize = 10.sp, color = TextMuted)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = nameInput,
+                            onValueChange = { nameInput = it },
+                            placeholder = { Text("e.g. Anas", fontSize = 12.sp, color = TextMuted) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = DarkBg,
+                                unfocusedContainerColor = DarkBg,
+                                focusedBorderColor = EmeraldPrimary,
+                                unfocusedBorderColor = BorderColor,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Button(
+                            onClick = {
+                                if (nameInput.isNotBlank()) {
+                                    onSaveProfileName(nameInput.trim())
+                                    Toast.makeText(context, "Profile name updated!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                        ) {
+                            Text("Save", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Vault Access Code Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -157,7 +214,90 @@ fun SettingsScreen(
             }
         }
 
-        // System Diagnostics Card
+        // 4. Offline Transaction Queue Card
+        item {
+            val pendingQueue = remember { DataSyncManager.getPendingOfflineQueue() }
+            val count = pendingQueue.size
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = CardDefaults.outlinedCardBorder(enabled = true),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(16.dp))
+                            Text("Offline Transaction Queue", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+
+                        Surface(
+                            color = if (count > 0) AmberWarning.copy(alpha = 0.2f) else EmeraldPrimary.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (count > 0) "$count Pending" else "100% Synced",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (count > 0) AmberWarning else EmeraldPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = if (count > 0) "Transactions logged while offline are queued locally in SQLite and will sync automatically when internet is connected." else "No pending offline transactions. All data is fully synced to Supabase.",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+
+                    if (count > 0) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            pendingQueue.take(5).forEach { (_, json) ->
+                                val amt = json.optDouble("amount", 0.0)
+                                val type = json.optString("type", "expense")
+                                val note = json.optString("note", json.optString("receiver_vendor", "Offline Log"))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(DarkBg, RoundedCornerShape(8.dp))
+                                        .padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(if (note.isBlank()) "Offline Log" else note, fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = "${if (type == "income") "+" else "-"}₹${amt.toInt()}",
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = if (type == "income") EmeraldPrimary else RoseExpense,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = onSyncQueue,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sync Queue Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. System Diagnostics Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -204,7 +344,7 @@ fun SettingsScreen(
             }
         }
 
-        // Danger Zone Card
+        // 5. Danger Zone Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -233,7 +373,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    Divider(color = BorderColor)
+                    HorizontalDivider(color = BorderColor)
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -258,20 +398,62 @@ fun SettingsScreen(
         }
     }
 
+    // Rotate Vault Code Modal Dialog
     if (showRotateDialog) {
+        var customCodeInput by remember { mutableStateOf("") }
+        var rotateError by remember { mutableStateOf<String?>(null) }
+
         AlertDialog(
             onDismissRequest = { showRotateDialog = false },
-            title = { Text("Rotate Vault Code", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to generate a new Vault Code?", fontSize = 12.sp, color = TextMuted) },
+            title = { Text("Rotate / Change Vault Code", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Enter your custom Vault Code or generate a random one. All database records will be migrated automatically, and you will be logged out.",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+
+                    OutlinedTextField(
+                        value = customCodeInput,
+                        onValueChange = {
+                            customCodeInput = it
+                            rotateError = null
+                        },
+                        placeholder = { Text("Custom code (or leave empty for random)", fontSize = 11.sp, color = TextMuted) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = DarkBg,
+                            unfocusedContainerColor = DarkBg,
+                            focusedBorderColor = EmeraldPrimary,
+                            unfocusedBorderColor = BorderColor,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (rotateError != null) {
+                        Text(rotateError!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
             confirmButton = {
                 Button(
                     onClick = {
-                        onRotateCode()
+                        val codeToUse = customCodeInput.trim()
+                        if (codeToUse.isNotBlank() && codeToUse.length < 4) {
+                            rotateError = "Vault code must be at least 4 characters"
+                            return@Button
+                        }
+                        onRotateCode(if (codeToUse.isBlank()) null else codeToUse)
                         showRotateDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
                 ) {
-                    Text("Rotate Code")
+                    Text("Rotate & Migrate")
                 }
             },
             dismissButton = {

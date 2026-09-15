@@ -39,6 +39,8 @@ export default function SettingsTab() {
   const [showVaultCode, setShowVaultCode] = useState(false);
   const [isRotatingCode, setIsRotatingCode] = useState(false);
   const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
+  const [customCodeInput, setCustomCodeInput] = useState("");
+  const [rotateError, setRotateError] = useState<string | null>(null);
   const [rotateSuccessMsg, setRotateSuccessMsg] = useState<string | null>(null);
   const [hasCopiedCode, setHasCopiedCode] = useState(false);
 
@@ -73,17 +75,29 @@ export default function SettingsTab() {
     setTimeout(() => setLabelSavedSuccess(false), 2000);
   };
 
-  const handlePerformRotation = async () => {
-    setRotateConfirmOpen(false);
+  const generateRandomCodeString = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCustomCodeInput(code);
+  };
+
+  const handlePerformRotation = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setRotateError(null);
     setIsRotatingCode(true);
-    const newCode = await rotateVaultCode();
+
+    const res = await rotateVaultCode(customCodeInput.trim() || undefined);
     setIsRotatingCode(false);
-    if (newCode) {
-      if (typeof window !== "undefined" && (window as any).AndroidBridge?.setVaultCode) {
-        (window as any).AndroidBridge.setVaultCode(newCode);
-      }
-      setRotateSuccessMsg(`Vault Code successfully rotated to ${newCode}!`);
-      setTimeout(() => setRotateSuccessMsg(null), 5000);
+
+    if (res.success) {
+      setRotateConfirmOpen(false);
+      setCustomCodeInput("");
+      // User is automatically logged out by authContext, returning to login screen
+    } else {
+      setRotateError(res.error || "Failed to rotate vault code");
     }
   };
 
@@ -171,78 +185,70 @@ export default function SettingsTab() {
         </form>
       </div>
 
-      {/* 2. Vault Code (Visible ONLY inside Android App) */}
-      {isAndroidApp && (
-        <div className="bg-[#131A26] border border-[#1E293B] rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between pb-3 border-b border-[#1E293B]">
-            <div className="flex items-center gap-2.5">
-              <KeyRound className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-sm font-semibold text-white">Vault Access Code</h3>
-            </div>
-            <span className="text-[10px] text-slate-500 font-mono">Secret Key</span>
+      {/* 2. Vault Code */}
+      <div className="bg-[#131A26] border border-[#1E293B] rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between pb-3 border-b border-[#1E293B]">
+          <div className="flex items-center gap-2.5">
+            <KeyRound className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-semibold text-white">Vault Access Code</h3>
           </div>
-
-          <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1E293B] space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {/* Masked / Visible Code */}
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-lg font-bold text-emerald-400 tracking-widest">
-                  {showVaultCode ? activeCode : "••••••••"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowVaultCode(!showVaultCode)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E293B] transition cursor-pointer"
-                  title={showVaultCode ? "Hide Vault Code" : "Show Vault Code"}
-                >
-                  {showVaultCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-
-              {/* Action Buttons: Copy & Rotate */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={copyVaultCode}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-white text-xs font-medium transition cursor-pointer flex-1 sm:flex-initial"
-                >
-                  {hasCopiedCode ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" /> Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" /> Copy Code
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setRotateConfirmOpen(true)}
-                  disabled={isRotatingCode}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 text-xs font-semibold transition cursor-pointer disabled:opacity-50 flex-1 sm:flex-initial"
-                >
-                  {isRotatingCode ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  )}
-                  <span>Rotate Code</span>
-                </button>
-              </div>
-            </div>
-
-            {rotateSuccessMsg && (
-              <p className="text-[11px] text-emerald-400 font-medium bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 animate-in fade-in duration-150">
-                {rotateSuccessMsg}
-              </p>
-            )}
-
-            <p className="text-[11px] text-slate-500">
-              Use this Vault Code to log into your account across devices. Keep it secret.
-            </p>
-          </div>
+          <span className="text-[10px] text-slate-500 font-mono">Secret Key</span>
         </div>
-      )}
+
+        <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#1E293B] space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Masked / Visible Code */}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-lg font-bold text-emerald-400 tracking-widest">
+                {showVaultCode ? activeCode : "••••••••"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowVaultCode(!showVaultCode)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1E293B] transition cursor-pointer"
+                title={showVaultCode ? "Hide Vault Code" : "Show Vault Code"}
+              >
+                {showVaultCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Action Buttons: Copy & Rotate */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={copyVaultCode}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#1E293B] hover:bg-[#334155] text-white text-xs font-medium transition cursor-pointer flex-1 sm:flex-initial"
+              >
+                {hasCopiedCode ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" /> Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" /> Copy Code
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => setRotateConfirmOpen(true)}
+                disabled={isRotatingCode}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-400 text-xs font-semibold transition cursor-pointer disabled:opacity-50 flex-1 sm:flex-initial"
+              >
+                {isRotatingCode ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                <span>Rotate Code</span>
+              </button>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-500">
+            Use this Vault Code to log into your account across devices. Keep it secret.
+          </p>
+        </div>
+      </div>
 
       {/* 3. Storage & Security Status */}
       <div className="bg-[#131A26] border border-[#1E293B] rounded-2xl p-5 md:p-6 space-y-3 shadow-sm text-xs">
@@ -342,15 +348,79 @@ export default function SettingsTab() {
         </div>
       </div>
 
-      {/* Confirmation Modals */}
-      <ConfirmModal
-        isOpen={rotateConfirmOpen}
-        title="Rotate Vault Code"
-        message="Are you sure you want to generate a NEW Vault Code? All your transactions will be transferred to the new code."
-        confirmText="Generate New Code & Rotate"
-        onConfirm={handlePerformRotation}
-        onClose={() => setRotateConfirmOpen(false)}
-      />
+      {/* Rotate Vault Code Modal */}
+      {rotateConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#131A26] border border-[#1E293B] rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-2 text-emerald-400 font-bold text-lg">
+              <RefreshCw className="w-5 h-5 animate-spin-slow" />
+              <span>Rotate Vault Code</span>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Rotating your code will transfer all your database transactions & categories to the new code and <strong>automatically log out</strong> all active sessions across devices.
+            </p>
+
+            <form onSubmit={handlePerformRotation} className="space-y-3 pt-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  New Vault Code (Optional Custom Code)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customCodeInput}
+                    onChange={(e) => setCustomCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Leave blank for random code"
+                    className="flex-1 bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3.5 py-2.5 text-white font-mono text-xs tracking-wider focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateRandomCodeString}
+                    className="px-3 py-2.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-emerald-400 font-mono text-xs transition cursor-pointer"
+                  >
+                    Generate
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Enter your own code or click Generate for a random code.
+                </p>
+              </div>
+
+              {rotateError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span>{rotateError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRotateConfirmOpen(false);
+                    setRotateError(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-slate-300 font-semibold text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRotatingCode}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  {isRotatingCode ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span>Rotate & Log Out</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={wipeConfirmOpen}

@@ -17,6 +17,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DataSyncManager.init(this)
 
         // 1. Check if vault code exists. If first launch, show Onboarding
         val vaultCode = DataSyncManager.getVaultCode()
@@ -43,6 +44,14 @@ class MainActivity : AppCompatActivity() {
         if (DataSyncManager.isOnline(this)) {
             DataSyncManager.flushOfflineQueue(this)
         }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+            Toast.makeText(this, "Shortcut triggered via Volume Key: Ready to log transaction!", Toast.LENGTH_SHORT).show()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     // Native Javascript Bridge for compatibility

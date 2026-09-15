@@ -182,54 +182,31 @@ export default function CategoriesTab() {
                     </div>
                   </div>
 
-                  {/* Total Spend & Opening Balance Status */}
-                  <div className="mt-5 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <div className="flex items-center gap-2">
-                        {spent > 0 && <span className="font-bold text-rose-400">-₹{spent.toLocaleString("en-IN")}</span>}
-                        {income > 0 && <span className="font-bold text-emerald-400">+₹{income.toLocaleString("en-IN")}</span>}
-                        {spent === 0 && income === 0 && <span className="text-slate-500 font-normal">₹0</span>}
-                      </div>
-                      {hasBalance && (
-                        <span className="text-slate-400 text-[11px]">
-                          Opening: ₹{openingBalance.toLocaleString("en-IN")}
-                        </span>
-                      )}
+                  {/* 4 Key Metrics: Opening Balance, Income, Outcome, Remaining */}
+                  <div className="mt-4 pt-3 border-t border-[#1E293B] space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Opening Balance:</span>
+                      <span className="font-mono text-slate-200">
+                        {hasBalance ? `₹${openingBalance.toLocaleString("en-IN")}` : "₹0"}
+                      </span>
                     </div>
 
-                    {/* Progress Bar if Opening Balance is set */}
-                    {hasBalance ? (
-                      <div className="space-y-1">
-                        <div className="w-full h-2 bg-[#0B0F17] rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              isOverBalance
-                                ? "bg-rose-500"
-                                : percent > 80
-                                ? "bg-amber-500"
-                                : "bg-emerald-500"
-                            }`}
-                            style={{ width: `${percent}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span
-                            className={
-                              isOverBalance
-                                ? "text-rose-400 font-semibold"
-                                : "text-slate-500"
-                            }
-                          >
-                            {isOverBalance ? "⚠️ Over opening balance" : `${percent}% used`}
-                          </span>
-                          <span className="text-slate-500 font-mono">
-                            {hasBalance ? `Rem: ₹${currentBalance.toLocaleString("en-IN")}` : ""}
-                          </span>
-                        </div>
+                    <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] font-mono">
+                      <div className="bg-[#0B0F17] p-2 rounded-lg border border-[#1E293B]">
+                        <span className="block text-[9px] font-sans text-slate-500 font-bold uppercase">Income</span>
+                        <span className="text-emerald-400 font-bold">+₹{income.toLocaleString("en-IN")}</span>
                       </div>
-                    ) : (
-                      <p className="text-[10px] text-slate-500 italic">No opening balance set</p>
-                    )}
+                      <div className="bg-[#0B0F17] p-2 rounded-lg border border-[#1E293B]">
+                        <span className="block text-[9px] font-sans text-slate-500 font-bold uppercase">Outcome</span>
+                        <span className="text-rose-400 font-bold">-₹{spent.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="bg-[#0B0F17] p-2 rounded-lg border border-[#1E293B] text-right">
+                        <span className="block text-[9px] font-sans text-slate-500 font-bold uppercase">Remaining</span>
+                        <span className={`font-bold ${currentBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {currentBalance >= 0 ? "+" : ""}₹{currentBalance.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
