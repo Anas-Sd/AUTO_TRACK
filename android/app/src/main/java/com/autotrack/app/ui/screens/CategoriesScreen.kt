@@ -44,6 +44,7 @@ fun CategoriesScreen(
 ) {
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var deletingCategory by remember { mutableStateOf<Category?>(null) }
 
     val categoryStats = remember(transactions, categories) {
         val map = mutableMapOf<String, Pair<Double, Double>>() // categoryId -> (expense, income)
@@ -95,7 +96,11 @@ fun CategoriesScreen(
             }
 
             Button(
-                onClick = { showCreateCategoryDialog = true },
+                onClick = {
+                    editingCategory = null
+                    deletingCategory = null
+                    showCreateCategoryDialog = true
+                },
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
@@ -194,18 +199,23 @@ fun CategoriesScreen(
                         colors = CardDefaults.cardColors(containerColor = CardBg),
                         shape = RoundedCornerShape(12.dp),
                         border = CardDefaults.outlinedCardBorder(enabled = true),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectCategory(cat.id) }
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Header Row: Icon, Category Name & Opening Balance
+                            // Header Row: Icon, Category Name, Opening Balance & Separate Action Buttons
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Category Icon & Name (Clickable to select category)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onSelectCategory(cat.id) }
+                                ) {
                                     Box(
                                         modifier = Modifier
                                             .size(30.dp)
@@ -218,27 +228,61 @@ fun CategoriesScreen(
                                     Text(cat.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
 
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // Opening Balance & Separate Edit / Delete Action Buttons
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     Text(
                                         text = if (hasBalance) "Opening: ₹${openingBal!!.toInt()}" else "Opening: ₹0",
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace,
                                         color = TextMuted
                                     )
+
+                                    // Separate Edit Button
                                     IconButton(
-                                        onClick = { editingCategory = cat },
-                                        modifier = Modifier.size(24.dp)
+                                        onClick = {
+                                            deletingCategory = null
+                                            showCreateCategoryDialog = false
+                                            editingCategory = cat
+                                        },
+                                        modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Edit Category", tint = TextMuted, modifier = Modifier.size(14.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Category",
+                                            tint = EmeraldPrimary,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+
+                                    // Separate Delete Button
+                                    IconButton(
+                                        onClick = {
+                                            editingCategory = null
+                                            showCreateCategoryDialog = false
+                                            deletingCategory = cat
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Category",
+                                            tint = RoseExpense,
+                                            modifier = Modifier.size(15.dp)
+                                        )
                                     }
                                 }
                             }
 
                             HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
 
-                            // 3 Metrics Row: Income, Outcome/Expense, Remaining Balance
+                            // 3 Metrics Row: Income, Outcome/Expense, Remaining Balance (Clickable to view ledger)
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelectCategory(cat.id) },
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -442,12 +486,14 @@ fun CategoriesScreen(
             }
         }
 
-        // Edit Category Dialog
+        // Edit Category Dialog Modal
         if (editingCategory != null) {
-            val cat = editingCategory!!
-            var editName by remember { mutableStateOf(cat.name) }
-            var editIcon by remember { mutableStateOf(cat.icon) }
-            var editCapText by remember { mutableStateOf(cat.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "") }
+            val catToEdit = editingCategory!!
+            var editName by remember(catToEdit.id) { mutableStateOf(catToEdit.name) }
+            var editIcon by remember(catToEdit.id) { mutableStateOf(catToEdit.icon) }
+            var editCapText by remember(catToEdit.id) {
+                mutableStateOf(catToEdit.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+            }
             var editError by remember { mutableStateOf<String?>(null) }
             val quickIcons = listOf("🏷️", "🍔", "🛍️", "⚡", "🚗", "🎬", "💊", "💰", "📈", "🏠", "✈️", "🎮", "☕", "📱")
 
@@ -548,19 +594,6 @@ fun CategoriesScreen(
                             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            IconButton(
-                                onClick = {
-                                    onDeleteCategory(cat.id)
-                                    editingCategory = null
-                                },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(RoseExpense.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                    .border(1.dp, RoseExpense.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = RoseExpense, modifier = Modifier.size(18.dp))
-                            }
-
                             OutlinedButton(
                                 onClick = { editingCategory = null },
                                 modifier = Modifier.weight(1f),
@@ -577,7 +610,7 @@ fun CategoriesScreen(
                                         return@Button
                                     }
                                     val capVal = editCapText.toDoubleOrNull()
-                                    onUpdateCategory(cat.id, editName.trim(), editIcon, capVal)
+                                    onUpdateCategory(catToEdit.id, editName.trim(), editIcon, capVal)
                                     editingCategory = null
                                 },
                                 modifier = Modifier.weight(1f),
@@ -590,6 +623,42 @@ fun CategoriesScreen(
                     }
                 }
             }
+        }
+
+        // Delete Category Confirmation Modal
+        if (deletingCategory != null) {
+            val catToDelete = deletingCategory!!
+            AlertDialog(
+                onDismissRequest = { deletingCategory = null },
+                title = {
+                    Text("Delete Category", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text(
+                        "Are you sure you want to delete category \"${catToDelete.name}\"? Existing transactions in this category will remain saved as Uncategorized.",
+                        fontSize = 12.sp,
+                        color = TextMuted
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onDeleteCategory(catToDelete.id)
+                            deletingCategory = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Delete", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deletingCategory = null }) {
+                        Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                    }
+                },
+                containerColor = CardBg
+            )
         }
     }
 }
