@@ -202,82 +202,88 @@ fun CategoriesScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Header Row: Icon, Category Name, Opening Balance & Separate Action Buttons
+                            // Header Row: Icon, Category Name, Opening Balance & Action Buttons
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Category Icon & Name (Clickable to select category)
+                                // Category Icon, Name & Opening Balance (Clickable to select category)
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                     modifier = Modifier
                                         .weight(1f)
                                         .clickable { onSelectCategory(cat.id) }
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(30.dp)
+                                            .size(34.dp)
                                             .background(DarkBg, RoundedCornerShape(8.dp))
                                             .border(1.dp, BorderColor, RoundedCornerShape(8.dp)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(cat.icon, fontSize = 15.sp)
+                                        Text(cat.icon, fontSize = 16.sp)
                                     }
-                                    Text(cat.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+
+                                    Column {
+                                        Text(cat.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(
+                                            text = if (hasBalance) "Opening: ₹${openingBal!!.toInt()}" else "Opening: ₹0",
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = TextMuted
+                                        )
+                                    }
                                 }
 
-                                // Opening Balance & Separate Edit / Delete Action Buttons
+                                // Separate Edit & Delete Action Buttons
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = if (hasBalance) "Opening: ₹${openingBal!!.toInt()}" else "Opening: ₹0",
-                                        fontSize = 10.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        color = TextMuted
-                                    )
-
-                                    // Separate Edit Button
-                                    IconButton(
+                                    // Clean Edit Button Pill
+                                    Surface(
                                         onClick = {
                                             deletingCategoryId = null
                                             showCreateCategoryDialog = false
                                             editingCategoryId = cat.id
                                         },
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(EmeraldPrimary.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                            .border(1.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = EmeraldPrimary.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f)),
+                                        modifier = Modifier.size(32.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "Edit Category",
-                                            tint = EmeraldPrimary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit Category",
+                                                tint = EmeraldPrimary,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
                                     }
 
-                                    // Separate Delete Button
-                                    IconButton(
+                                    // Clean Delete Button Pill
+                                    Surface(
                                         onClick = {
                                             editingCategoryId = null
                                             showCreateCategoryDialog = false
                                             deletingCategoryId = cat.id
                                         },
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(RoseExpense.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                            .border(1.dp, RoseExpense.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = RoseExpense.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, RoseExpense.copy(alpha = 0.4f)),
+                                        modifier = Modifier.size(32.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete Category",
-                                            tint = RoseExpense,
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Category",
+                                                tint = RoseExpense,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
