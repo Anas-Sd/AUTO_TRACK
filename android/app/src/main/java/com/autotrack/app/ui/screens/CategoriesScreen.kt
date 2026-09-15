@@ -247,13 +247,16 @@ fun CategoriesScreen(
                                             showCreateCategoryDialog = false
                                             editingCategory = cat
                                         },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .background(EmeraldPrimary.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, EmeraldPrimary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
                                             contentDescription = "Edit Category",
                                             tint = EmeraldPrimary,
-                                            modifier = Modifier.size(15.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
 
@@ -264,13 +267,16 @@ fun CategoriesScreen(
                                             showCreateCategoryDialog = false
                                             deletingCategory = cat
                                         },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .background(RoseExpense.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, RoseExpense.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete Category",
                                             tint = RoseExpense,
-                                            modifier = Modifier.size(15.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }

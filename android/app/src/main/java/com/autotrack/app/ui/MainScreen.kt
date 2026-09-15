@@ -247,22 +247,6 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { _, dragAmount ->
-                            if (dragAmount > 0 && !isRefreshing) {
-                                pullOffset = (pullOffset + dragAmount).coerceAtMost(180f)
-                            }
-                        },
-                        onDragEnd = {
-                            if (pullOffset > 90f && !isRefreshing) {
-                                refreshData(isManualSwipe = true)
-                            }
-                            pullOffset = 0f
-                        },
-                        onDragCancel = { pullOffset = 0f }
-                    )
-                }
         ) {
             when (activeTab) {
                 "overview" -> OverviewScreen(transactions = transactions, categories = categories, userName = profileName)
