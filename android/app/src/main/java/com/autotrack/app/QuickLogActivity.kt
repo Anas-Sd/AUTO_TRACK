@@ -26,6 +26,7 @@ class QuickLogActivity : ComponentActivity() {
         setContent {
             AutoTrackTheme {
                 var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
+                var latestTx by remember { mutableStateOf<com.autotrack.app.data.TransactionItem?>(null) }
                 val scope = rememberCoroutineScope()
 
                 LaunchedEffect(Unit) {
@@ -69,8 +70,11 @@ class QuickLogActivity : ComponentActivity() {
                             // offline
                         }
 
+                        val fetchedLatest = DataSyncManager.fetchLatestTransaction()
+
                         withContext(Dispatchers.Main) {
                             categories = newCats
+                            latestTx = fetchedLatest
                         }
                     }
                 }
@@ -78,6 +82,7 @@ class QuickLogActivity : ComponentActivity() {
                 ManualLogBottomSheet(
                     onDismissRequest = { finish() },
                     categories = categories,
+                    latestTransaction = latestTx,
                     onSaveTransaction = { amount, type, vendor, categoryId, method, note ->
                         scope.launch {
                             val ok = DataSyncManager.saveTransaction(
@@ -99,6 +104,12 @@ class QuickLogActivity : ComponentActivity() {
                     onCreateCategory = { name, icon, cap ->
                         scope.launch {
                             DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                        }
+                    },
+                    onDeleteTransaction = { txId ->
+                        scope.launch {
+                            DataSyncManager.deleteTransaction(txId)
+                            finish()
                         }
                     }
                 )

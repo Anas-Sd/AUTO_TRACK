@@ -1,20 +1,30 @@
 package com.autotrack.app.ui.components
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,7 +33,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.autotrack.app.data.Category
+import com.autotrack.app.data.TransactionItem
 import com.autotrack.app.ui.theme.*
+
+private data class InstalledPaymentApp(
+    val name: String,
+    val packageName: String,
+    val iconEmoji: String,
+    val color: Color
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,21 +49,50 @@ fun ManualLogBottomSheet(
     onDismissRequest: () -> Unit,
     categories: List<Category>,
     onSaveTransaction: (amount: Double, type: String, vendor: String?, categoryId: String?, paymentMethod: String, note: String?) -> Unit,
-    onCreateCategory: (name: String, icon: String, cap: Double?) -> Unit
+    onCreateCategory: (name: String, icon: String, cap: Double?) -> Unit,
+    latestTransaction: TransactionItem? = null,
+    onDeleteTransaction: ((id: String) -> Unit)? = null
 ) {
-    // Level 1 or 2 State
-    var level by remember { mutableStateOf(1) }
+    val context = LocalContext.current
+
+    // Mode Selection: "log", "payment", "undo"
+    var selectedMode by remember { mutableStateOf("log") }
+    
+    // Level State (1 = Mode selection / Level 2 details, 3 = Category & method, 4 = App launcher)
+    var level by remember { mutableStateOf(2) }
+
+    // Form State
     var type by remember { mutableStateOf("expense") } // "expense" = Outcome, "income" = Income
     var amount by remember { mutableStateOf("") }
     var receiverVendor by remember { mutableStateOf("") } // Notes / Vendor
-    var level1Error by remember { mutableStateOf<String?>(null) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
     var errorField by remember { mutableStateOf<String?>(null) }
 
-    // Level 2 State
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
-    var paymentMethod by remember { mutableStateOf("UPI") } // "UPI" or "Cash"
-    var note by remember { mutableStateOf("") }
+    var paymentMethod by remember { mutableStateOf("UPI") }
     var showCreateCatDialog by remember { mutableStateOf(false) }
+
+    // Auto-discover installed payment apps
+    val installedPaymentApps = remember(context) {
+        val supported = listOf(
+            InstalledPaymentApp("GPay", "com.google.android.apps.nbu.paisa.user", "🔵", Color(0xFF4285F4)),
+            InstalledPaymentApp("PhonePe", "com.phonepe.app", "🟣", Color(0xFF5F259F)),
+            InstalledPaymentApp("Paytm", "net.one97.paytm", "🔷", Color(0xFF00BAF2)),
+            InstalledPaymentApp("Navi", "com.navi.android", "🟢", Color(0xFF00D09C)),
+            InstalledPaymentApp("Super.money", "tech.super.money", "⚡", Color(0xFFEAB308)),
+            InstalledPaymentApp("BHIM", "in.org.npci.upiapp", "🟠", Color(0xFFEA580C)),
+            InstalledPaymentApp("CRED", "com.dreamplug.androidapp", "🖤", Color(0xFF374151))
+        )
+        val pm = context.packageManager
+        val found = supported.filter { app ->
+            pm.getLaunchIntentForPackage(app.packageName) != null
+        }.toMutableList()
+
+        if (found.isEmpty()) {
+            found.add(InstalledPaymentApp("UPI Apps", "", "📲", EmeraldPrimary))
+        }
+        found
+    }
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -65,15 +112,15 @@ fun ManualLogBottomSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.70f))
+                    .background(Color.Black.copy(alpha = 0.75f))
                     .clickable(onClick = onDismissRequest)
             )
 
-            // Sleek Floating Card (Reduced by ~25%)
+            // Main Popup Card
             Card(
                 modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .padding(top = 32.dp, bottom = 16.dp),
+                    .fillMaxWidth(0.90f)
+                    .padding(top = 28.dp, bottom = 16.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
                 border = CardDefaults.outlinedCardBorder(enabled = true)
@@ -81,388 +128,648 @@ fun ManualLogBottomSheet(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp)
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (level == 1) {
-                        /* ================= LEVEL 1 VIEW ================= */
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Log Transaction",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 15.sp
-                                )
-                            )
-                            Text(
-                                text = "Category Options →",
-                                fontSize = 11.sp,
-                                color = EmeraldPrimary,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { level = 2 }
-                            )
-                        }
-
-                        // Row 1: Outcome (-) / Income (+) Toggle
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(DarkBg, RoundedCornerShape(10.dp))
-                                .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    type = "expense"
-                                    level1Error = null
-                                    errorField = null
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (type == "expense") RoseExpense else Color.Transparent,
-                                    contentColor = if (type == "expense") Color.White else TextMuted
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.TrendingDown, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "Outcome (-)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = {
-                                    type = "income"
-                                    level1Error = null
-                                    errorField = null
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (type == "income") EmeraldPrimary else Color.Transparent,
-                                    contentColor = if (type == "income") Color.White else TextMuted
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = "Income (+)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Row 2: Amount Field (Replaces TO/FROM)
-                        Text(
-                            text = "Amount",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.LightGray
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        OutlinedTextField(
-                            value = amount,
-                            onValueChange = {
-                                amount = it
-                                if (errorField == "amount") {
-                                    errorField = null
-                                    level1Error = null
-                                }
-                            },
-                            placeholder = { Text("0.00", fontSize = 13.sp, color = TextMuted) },
-                            prefix = { Text("₹ ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMuted) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = errorField == "amount",
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = DarkBg,
-                                unfocusedContainerColor = DarkBg,
-                                focusedBorderColor = if (type == "expense") RoseExpense else EmeraldPrimary,
-                                unfocusedBorderColor = BorderColor,
-                                errorBorderColor = RoseExpense,
-                                focusedTextColor = if (type == "expense") RoseExpense else EmeraldPrimary,
-                                unfocusedTextColor = if (type == "expense") RoseExpense else EmeraldPrimary
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Row 3: Notes (Optional) Field
-                        Text(
-                            text = "Notes (Optional)",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.LightGray
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        OutlinedTextField(
-                            value = receiverVendor,
-                            onValueChange = {
-                                receiverVendor = it
-                                if (errorField == "notes") {
-                                    errorField = null
-                                    level1Error = null
-                                }
-                            },
-                            placeholder = {
-                                Text(
-                                    text = if (type == "expense") "e.g. Tea Stall, Zomato..." else "e.g. Salary, Friend...",
-                                    fontSize = 11.sp,
-                                    color = TextMuted
-                                )
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = DarkBg,
-                                unfocusedContainerColor = DarkBg,
-                                focusedBorderColor = EmeraldPrimary,
-                                unfocusedBorderColor = BorderColor,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        if (level1Error != null) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "• ${level1Error!!}",
-                                fontSize = 10.sp,
-                                color = RoseExpense,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Single Continue Button in Level 1 (Advances to Level 2)
-                        Button(
+                    // Level 1: Mode Selector Header (Log vs Payment vs Undo)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(DarkBg, RoundedCornerShape(10.dp))
+                            .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // 1. Log Mode
+                        Surface(
                             onClick = {
-                                val num = amount.toDoubleOrNull()
-                                if (num == null || num <= 0) {
-                                    errorField = "amount"
-                                    level1Error = "Please enter a valid amount"
-                                    return@Button
-                                }
+                                selectedMode = "log"
                                 level = 2
+                                errorMsg = null
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (selectedMode == "log") EmeraldPrimary else Color.Transparent,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("Continue →", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    } else {
-                        /* ================= LEVEL 2 VIEW ================= */
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${if (type == "expense") "- Outcome" else "+ Income"}: ₹${amount.toDoubleOrNull() ?: 0.0}",
-                                fontSize = 13.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                color = if (type == "expense") RoseExpense else EmeraldPrimary
-                            )
-
-                            OutlinedButton(
-                                onClick = { level = 1 },
-                                shape = RoundedCornerShape(8.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp), tint = EmeraldPrimary)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("Back", fontSize = 10.sp, color = Color.White)
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 6.dp)) {
+                                Text(
+                                    text = "📝 Log",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedMode == "log") Color.White else TextMuted
+                                )
                             }
                         }
 
-                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(bottom = 12.dp))
-
-                        // Category Selector
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // 2. Pay & Log Mode
+                        Surface(
+                            onClick = {
+                                selectedMode = "payment"
+                                level = 2
+                                type = "expense"
+                                errorMsg = null
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (selectedMode == "payment") Color(0xFF0284C7) else Color.Transparent,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Text("Category", fontSize = 10.sp, color = Color.LightGray)
-                            Text(
-                                text = "+ New Category",
-                                fontSize = 10.sp,
-                                color = EmeraldPrimary,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { showCreateCatDialog = true }
-                            )
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 6.dp)) {
+                                Text(
+                                    text = "⚡ Pay & Log",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedMode == "payment") Color.White else TextMuted
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
 
-                        var catDropdownExpanded by remember { mutableStateOf(false) }
-                        val activeCatName = categories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
+                        // 3. Undo Mode
+                        Surface(
+                            onClick = {
+                                selectedMode = "undo"
+                                level = 2
+                                errorMsg = null
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (selectedMode == "undo") RoseExpense else Color.Transparent,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 6.dp)) {
+                                Text(
+                                    text = "↺ Undo",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedMode == "undo") Color.White else TextMuted
+                                )
+                            }
+                        }
+                    }
 
-                        Box {
-                            OutlinedButton(
-                                onClick = { catDropdownExpanded = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor)
-                            ) {
+                    // Mode-Based Views
+                    when (selectedMode) {
+                        "log", "payment" -> {
+                            if (level == 2) {
+                                /* ================= LEVEL 2 VIEW ================= */
+                                // Row 1: Outcome (-) / Income (+) Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(DarkBg, RoundedCornerShape(10.dp))
+                                        .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
+                                        .padding(3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            type = "expense"
+                                            errorMsg = null
+                                            errorField = null
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (type == "expense") RoseExpense else Color.Transparent,
+                                            contentColor = if (type == "expense") Color.White else TextMuted
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.TrendingDown, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(text = "Outcome (-)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            type = "income"
+                                            errorMsg = null
+                                            errorField = null
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (type == "income") EmeraldPrimary else Color.Transparent,
+                                            contentColor = if (type == "income") Color.White else TextMuted
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(text = "Income (+)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                // Row 2: Amount Field (Mandatory)
+                                Column {
+                                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                        Text("Amount (Mandatory)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                        if (errorField == "amount") {
+                                            Text("Required", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RoseExpense)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    OutlinedTextField(
+                                        value = amount,
+                                        onValueChange = {
+                                            amount = it
+                                            if (errorField == "amount") {
+                                                errorField = null
+                                                errorMsg = null
+                                            }
+                                        },
+                                        placeholder = { Text("0.00", fontSize = 13.sp, color = TextMuted) },
+                                        prefix = { Text("₹ ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMuted) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        isError = errorField == "amount",
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = DarkBg,
+                                            unfocusedContainerColor = DarkBg,
+                                            focusedBorderColor = if (type == "expense") RoseExpense else EmeraldPrimary,
+                                            unfocusedBorderColor = BorderColor,
+                                            errorBorderColor = RoseExpense,
+                                            focusedTextColor = if (type == "expense") RoseExpense else EmeraldPrimary,
+                                            unfocusedTextColor = if (type == "expense") RoseExpense else EmeraldPrimary
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                // Row 3: Notes / Vendor Field
+                                Column {
+                                    Text("Notes / Payee", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    OutlinedTextField(
+                                        value = receiverVendor,
+                                        onValueChange = { receiverVendor = it },
+                                        placeholder = {
+                                            Text(
+                                                text = if (type == "expense") "e.g. Tea Stall, Zomato..." else "e.g. Salary, Friend...",
+                                                fontSize = 11.sp,
+                                                color = TextMuted
+                                            )
+                                        },
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = DarkBg,
+                                            unfocusedContainerColor = DarkBg,
+                                            focusedBorderColor = EmeraldPrimary,
+                                            unfocusedBorderColor = BorderColor,
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+
+                                if (errorMsg != null) {
+                                    Text("• $errorMsg", fontSize = 10.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
+                                }
+
+                                // Level 2 Navigation Buttons
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = onDismissRequest,
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, BorderColor)
+                                    ) {
+                                        Text("Cancel", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val num = amount.toDoubleOrNull()
+                                            if (num == null || num <= 0) {
+                                                errorField = "amount"
+                                                errorMsg = "Please enter a valid amount"
+                                                return@Button
+                                            }
+                                            level = 3
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Continue →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            } else if (level == 3) {
+                                /* ================= LEVEL 3 VIEW ================= */
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(activeCatName, color = Color.White, fontSize = 11.sp)
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextMuted)
-                                }
-                            }
+                                    Text(
+                                        text = "${if (type == "expense") "- Outcome" else "+ Income"}: ₹${amount.toDoubleOrNull() ?: 0.0}",
+                                        fontSize = 13.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (type == "expense") RoseExpense else EmeraldPrimary
+                                    )
 
-                            DropdownMenu(
-                                expanded = catDropdownExpanded,
-                                onDismissRequest = { catDropdownExpanded = false },
-                                modifier = Modifier.background(CardBg).border(1.dp, BorderColor)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("📦 Uncategorized", color = Color.White, fontSize = 11.sp) },
-                                    onClick = {
-                                        selectedCategoryId = null
-                                        catDropdownExpanded = false
+                                    OutlinedButton(
+                                        onClick = { level = 2 },
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, BorderColor),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp), tint = EmeraldPrimary)
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("Back", fontSize = 10.sp, color = Color.White)
                                     }
-                                )
-                                categories.forEach { cat ->
-                                    DropdownMenuItem(
-                                        text = { Text("${cat.icon} ${cat.name}", color = Color.White, fontSize = 11.sp) },
-                                        onClick = {
-                                            selectedCategoryId = cat.id
-                                            catDropdownExpanded = false
-                                        }
+                                }
+
+                                HorizontalDivider(color = BorderColor)
+
+                                // Category Dropdown Selector
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Category", fontSize = 10.sp, color = Color.LightGray, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "+ New Category",
+                                        fontSize = 10.sp,
+                                        color = EmeraldPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clickable { showCreateCatDialog = true }
                                     )
+                                }
+
+                                var catDropdownExpanded by remember { mutableStateOf(false) }
+                                val activeCatName = categories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
+
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { catDropdownExpanded = true },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
+                                        border = BorderStroke(1.dp, BorderColor)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(activeCatName, color = Color.White, fontSize = 11.sp)
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = TextMuted)
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = catDropdownExpanded,
+                                        onDismissRequest = { catDropdownExpanded = false },
+                                        modifier = Modifier.background(CardBg).border(1.dp, BorderColor)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("📦 Uncategorized", color = Color.White, fontSize = 11.sp) },
+                                            onClick = {
+                                                selectedCategoryId = null
+                                                catDropdownExpanded = false
+                                            }
+                                        )
+                                        categories.forEach { cat ->
+                                            DropdownMenuItem(
+                                                text = { Text("${cat.icon} ${cat.name}", color = Color.White, fontSize = 11.sp) },
+                                                onClick = {
+                                                    selectedCategoryId = cat.id
+                                                    catDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Payment Method Selection (UPI vs Cash)
+                                Text("Payment Method", fontSize = 10.sp, color = Color.LightGray, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(DarkBg, RoundedCornerShape(10.dp))
+                                        .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
+                                        .padding(3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Button(
+                                        onClick = { paymentMethod = "UPI" },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (paymentMethod == "UPI") EmeraldPrimary else Color.Transparent,
+                                            contentColor = if (paymentMethod == "UPI") Color.White else TextMuted
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.Smartphone, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("UPI", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    Button(
+                                        onClick = { paymentMethod = "Cash" },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (paymentMethod == "Cash") AmberWarning else Color.Transparent,
+                                            contentColor = if (paymentMethod == "Cash") Color.White else TextMuted
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Cash", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                // Level 3 Buttons for LOG vs PAYMENT
+                                if (selectedMode == "log") {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { level = 2 },
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Cancel", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                val num = amount.toDoubleOrNull() ?: 0.0
+                                                onSaveTransaction(
+                                                    num,
+                                                    type,
+                                                    receiverVendor.ifBlank { null },
+                                                    selectedCategoryId,
+                                                    paymentMethod,
+                                                    receiverVendor.ifBlank { null }
+                                                )
+                                                level = 2
+                                                amount = ""
+                                                receiverVendor = ""
+                                                selectedCategoryId = null
+                                                Toast.makeText(context, "Logged! Add next...", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1.1f)
+                                        ) {
+                                            Text("Continue +", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                val num = amount.toDoubleOrNull() ?: 0.0
+                                                onSaveTransaction(
+                                                    num,
+                                                    type,
+                                                    receiverVendor.ifBlank { null },
+                                                    selectedCategoryId,
+                                                    paymentMethod,
+                                                    receiverVendor.ifBlank { null }
+                                                )
+                                                onDismissRequest()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Save ✔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                } else {
+                                    // PAYMENT Mode Level 3 Buttons
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { level = 2 },
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Cancel", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                val num = amount.toDoubleOrNull() ?: 0.0
+                                                onSaveTransaction(
+                                                    num,
+                                                    type,
+                                                    receiverVendor.ifBlank { null },
+                                                    selectedCategoryId,
+                                                    paymentMethod,
+                                                    receiverVendor.ifBlank { null }
+                                                )
+
+                                                // Copy Amount to Clipboard
+                                                try {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                    val clip = ClipData.newPlainText("AutoTrack Payment Amount", amount)
+                                                    clipboard.setPrimaryClip(clip)
+                                                } catch (e: Exception) { }
+
+                                                level = 4
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1.2f)
+                                        ) {
+                                            Text("Continue →", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                }
+                            } else if (level == 4) {
+                                /* ================= LEVEL 4 VIEW: APP LAUNCHER GRID ================= */
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "Select App to Complete Payment (₹$amount)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Log saved! Amount copied to clipboard. Tap an app to launch:",
+                                        fontSize = 10.sp,
+                                        color = TextMuted
+                                    )
+
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Fixed(3),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth().height(160.dp)
+                                    ) {
+                                        items(installedPaymentApps) { app ->
+                                            Surface(
+                                                onClick = {
+                                                    try {
+                                                        val upiUri = Uri.parse("upi://pay?am=$amount&tn=${Uri.encode(receiverVendor.ifBlank { "Payment" })}&cu=INR")
+                                                        val intent = Intent(Intent.ACTION_VIEW, upiUri)
+                                                        if (app.packageName.isNotEmpty()) {
+                                                            intent.setPackage(app.packageName)
+                                                        }
+                                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        try {
+                                                            val pm = context.packageManager
+                                                            val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
+                                                            if (launchIntent != null) {
+                                                                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                                context.startActivity(launchIntent)
+                                                            }
+                                                        } catch (e2: Exception) {
+                                                            Toast.makeText(context, "Could not launch ${app.name}", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                    onDismissRequest()
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = DarkBg,
+                                                border = BorderStroke(1.dp, app.color.copy(alpha = 0.5f))
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center,
+                                                    modifier = Modifier.padding(10.dp)
+                                                ) {
+                                                    Text(app.iconEmoji, fontSize = 22.sp)
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = app.name,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = onDismissRequest,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, BorderColor)
+                                    ) {
+                                        Text("Close", fontSize = 11.sp, color = TextMuted)
+                                    }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        "undo" -> {
+                            /* ================= UNDO BRANCH VIEW ================= */
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    text = "Undo Recent Transaction",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
 
-                        // Payment Method (UPI vs Cash)
-                        Text("Payment Method", fontSize = 10.sp, color = Color.LightGray)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(DarkBg, RoundedCornerShape(10.dp))
-                                .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Button(
-                                onClick = { paymentMethod = "UPI" },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (paymentMethod == "UPI") EmeraldPrimary else Color.Transparent,
-                                    contentColor = if (paymentMethod == "UPI") Color.White else TextMuted
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.Smartphone, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("UPI", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
+                                if (latestTransaction == null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 20.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("No recent transaction found to undo.", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                    OutlinedButton(
+                                        onClick = onDismissRequest,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, BorderColor)
+                                    ) {
+                                        Text("Close", fontSize = 11.sp, color = TextMuted)
+                                    }
+                                } else {
+                                    val tx = latestTransaction
+                                    val cat = categories.find { it.id == tx.categoryId }
 
-                            Button(
-                                onClick = { paymentMethod = "Cash" },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (paymentMethod == "Cash") AmberWarning else Color.Transparent,
-                                    contentColor = if (paymentMethod == "Cash") Color.White else TextMuted
-                                ),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Cash", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = DarkBg),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, BorderColor),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${cat?.icon ?: "🏷️"} ${cat?.name ?: "Uncategorized"}",
+                                                    fontSize = 11.sp,
+                                                    color = TextMuted
+                                                )
+                                                Text(
+                                                    text = if (tx.type == "income") "+₹${tx.amount.toInt()}" else "-₹${tx.amount.toInt()}",
+                                                    fontSize = 14.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (tx.type == "income") EmeraldPrimary else RoseExpense
+                                                )
+                                            }
+                                            Text(
+                                                text = tx.receiverVendor ?: tx.note ?: "Transaction #${tx.id.take(8)}",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // 3 Buttons in Level 2 (Cancel/Back, Continue+, Save)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            // 1. Cancel / Back Button
-                            OutlinedButton(
-                                onClick = { level = 1 },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
-                            ) {
-                                Text("Cancel", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                            }
-
-                            // 2. Continue+ Button (Saves & resets to Level 1 with clean fields for consecutive logging)
-                            Button(
-                                onClick = {
-                                    val num = amount.toDoubleOrNull() ?: 0.0
-                                    onSaveTransaction(
-                                        num,
-                                        type,
-                                        receiverVendor.ifBlank { null },
-                                        selectedCategoryId,
-                                        paymentMethod,
-                                        receiverVendor.ifBlank { null }
+                                    Text(
+                                        text = "Are you sure you want to delete and undo this transaction? This will permanently remove it from database and app totals.",
+                                        fontSize = 10.sp,
+                                        color = TextMuted
                                     )
-                                    // Reset to Level 1 & clear fields
-                                    level = 1
-                                    amount = ""
-                                    receiverVendor = ""
-                                    selectedCategoryId = null
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1.1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
-                            ) {
-                                Text("Continue +", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
 
-                            // 3. Save Button (Saves & closes popup)
-                            Button(
-                                onClick = {
-                                    val num = amount.toDoubleOrNull() ?: 0.0
-                                    onSaveTransaction(
-                                        num,
-                                        type,
-                                        receiverVendor.ifBlank { null },
-                                        selectedCategoryId,
-                                        paymentMethod,
-                                        receiverVendor.ifBlank { null }
-                                    )
-                                    onDismissRequest()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
-                            ) {
-                                Text("Save ✔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = onDismissRequest,
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            border = BorderStroke(1.dp, BorderColor)
+                                        ) {
+                                            Text("No, Cancel", fontSize = 11.sp, color = TextMuted)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                if (onDeleteTransaction != null) {
+                                                    onDeleteTransaction(tx.id)
+                                                    Toast.makeText(context, "Transaction undone & deleted!", Toast.LENGTH_SHORT).show()
+                                                }
+                                                onDismissRequest()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1.2f)
+                                        ) {
+                                            Text("Yes, Delete 🗑️", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

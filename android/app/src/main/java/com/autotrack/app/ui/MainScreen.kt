@@ -379,11 +379,12 @@ fun MainScreen(
         }
     }
 
-    // Native 2-Level Manual Log Dialog (Top-Anchored Modal Popup)
+    // Native Multi-Level Manual Log / Pay Launcher / Undo Dialog
     if (isBottomSheetOpen) {
         ManualLogBottomSheet(
             onDismissRequest = { isBottomSheetOpen = false },
             categories = categories,
+            latestTransaction = transactions.firstOrNull(),
             onSaveTransaction = { amount, type, vendor, categoryId, method, note ->
                 scope.launch {
                     val saveRes = DataSyncManager.saveTransactionWithStatus(
@@ -409,6 +410,13 @@ fun MainScreen(
             onCreateCategory = { name, icon, cap ->
                 scope.launch {
                     DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                    refreshData()
+                }
+            },
+            onDeleteTransaction = { txId ->
+                scope.launch {
+                    DataSyncManager.deleteTransaction(txId)
+                    Toast.makeText(context, "Transaction undone & deleted!", Toast.LENGTH_SHORT).show()
                     refreshData()
                 }
             }

@@ -415,6 +415,42 @@ object DataSyncManager {
         return res != SaveResult.FAILED
     }
 
+    suspend fun fetchLatestTransaction(): com.autotrack.app.data.TransactionItem? = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext null
+        try {
+            val url = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault&order=occurred_at.desc&limit=1"
+            val req = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .get()
+                .build()
+
+            val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                val body = res.body?.string() ?: "[]"
+                val array = JSONArray(body)
+                if (array.length() > 0) {
+                    val obj = array.getJSONObject(0)
+                    return@withContext com.autotrack.app.data.TransactionItem(
+                        id = obj.optString("id", ""),
+                        vaultCode = obj.optString("vault_code", ""),
+                        amount = obj.optDouble("amount", 0.0),
+                        type = obj.optString("type", "expense"),
+                        receiverVendor = if (obj.has("receiver_vendor") && !obj.isNull("receiver_vendor")) obj.optString("receiver_vendor") else null,
+                        categoryId = if (obj.has("category_id") && !obj.isNull("category_id")) obj.optString("category_id") else null,
+                        sourceApp = obj.optString("source_app", "UPI"),
+                        note = if (obj.has("note") && !obj.isNull("note")) obj.optString("note") else null,
+                        occurredAt = obj.optString("occurred_at", "")
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        null
+    }
+
     suspend fun deleteTransaction(id: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = "$SUPABASE_URL/rest/v1/transactions?id=eq.$id"
