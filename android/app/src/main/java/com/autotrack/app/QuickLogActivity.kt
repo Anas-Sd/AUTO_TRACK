@@ -98,7 +98,6 @@ class QuickLogActivity : ComponentActivity() {
                             if (ok) {
                                 Toast.makeText(this@QuickLogActivity, "Transaction saved!", Toast.LENGTH_SHORT).show()
                             }
-                            finish()
                         }
                     },
                     onCreateCategory = { name, icon, cap ->

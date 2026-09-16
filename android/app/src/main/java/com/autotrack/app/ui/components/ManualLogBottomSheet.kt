@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -72,26 +74,54 @@ fun ManualLogBottomSheet(
     var paymentMethod by remember { mutableStateOf("UPI") }
     var showCreateCatDialog by remember { mutableStateOf(false) }
 
-    // Auto-discover installed payment apps
+    // Auto-discover installed payment apps dynamically
     val installedPaymentApps = remember(context) {
-        val supported = listOf(
-            InstalledPaymentApp("GPay", "com.google.android.apps.nbu.paisa.user", "🔵", Color(0xFF4285F4)),
-            InstalledPaymentApp("PhonePe", "com.phonepe.app", "🟣", Color(0xFF5F259F)),
-            InstalledPaymentApp("Paytm", "net.one97.paytm", "🔷", Color(0xFF00BAF2)),
-            InstalledPaymentApp("Navi", "com.navi.android", "🟢", Color(0xFF00D09C)),
-            InstalledPaymentApp("Super.money", "tech.super.money", "⚡", Color(0xFFEAB308)),
-            InstalledPaymentApp("BHIM", "in.org.npci.upiapp", "🟠", Color(0xFFEA580C)),
-            InstalledPaymentApp("CRED", "com.dreamplug.androidapp", "🖤", Color(0xFF374151))
-        )
         val pm = context.packageManager
-        val found = supported.filter { app ->
-            pm.getLaunchIntentForPackage(app.packageName) != null
-        }.toMutableList()
 
-        if (found.isEmpty()) {
-            found.add(InstalledPaymentApp("UPI Apps", "", "📲", EmeraldPrimary))
+        val targetAppSpecs = listOf(
+            Pair("GPay", listOf("com.google.android.apps.nbu.paisa.user") to Pair("🔵", Color(0xFF4285F4))),
+            Pair("PhonePe", listOf("com.phonepe.app", "com.phonepe.android", "com.phonepe.simulator") to Pair("🟣", Color(0xFF5F259F))),
+            Pair("Paytm", listOf("net.one97.paytm") to Pair("🔷", Color(0xFF00BAF2))),
+            Pair("Navi", listOf("com.navi.android", "com.naviapp", "com.navi.finance", "com.navi.mutualfund") to Pair("🟢", Color(0xFF00D09C))),
+            Pair("Super.money", listOf("tech.super.money", "com.supermoney.app", "money.super.app", "com.flipkart.supermoney") to Pair("⚡", Color(0xFFEAB308))),
+            Pair("BHIM", listOf("in.org.npci.upiapp") to Pair("🟠", Color(0xFFEA580C))),
+            Pair("CRED", listOf("com.dreamplug.androidapp") to Pair("🖤", Color(0xFF374151)))
+        )
+
+        val list = mutableListOf<InstalledPaymentApp>()
+
+        // 1. Scan configured app package aliases
+        for ((name, pair) in targetAppSpecs) {
+            val (packages, meta) = pair
+            val (icon, color) = meta
+            var installedPkg = ""
+            for (pkg in packages) {
+                val intent = pm.getLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    installedPkg = pkg
+                    break
+                }
+            }
+            if (installedPkg.isNotEmpty()) {
+                list.add(InstalledPaymentApp(name, installedPkg, icon, color))
+            }
         }
-        found
+
+        // 2. Query system-wide UPI handlers so no installed payment app is missed
+        val upiIntent = Intent(Intent.ACTION_VIEW, Uri.parse("upi://pay"))
+        val resolveInfos = try { pm.queryIntentActivities(upiIntent, 0) } catch (e: Exception) { emptyList() }
+        for (ri in resolveInfos) {
+            val pkg = ri.activityInfo.packageName
+            val label = ri.loadLabel(pm).toString()
+            if (list.none { it.packageName == pkg }) {
+                list.add(InstalledPaymentApp(label.take(12), pkg, "📲", EmeraldPrimary))
+            }
+        }
+
+        if (list.isEmpty()) {
+            list.add(InstalledPaymentApp("UPI Apps", "", "📲", EmeraldPrimary))
+        }
+        list
     }
 
     Dialog(
@@ -210,7 +240,6 @@ fun ManualLogBottomSheet(
                         "log", "payment" -> {
                             if (level == 2) {
                                 /* ================= LEVEL 2 VIEW ================= */
-                                // Row 1: Outcome (-) / Income (+) Toggle
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -233,7 +262,7 @@ fun ManualLogBottomSheet(
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(vertical = 6.dp)
                                     ) {
-                                        Icon(Icons.Default.TrendingDown, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.AutoMirrored.Filled.TrendingDown, contentDescription = null, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(text = "Outcome (-)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -252,13 +281,13 @@ fun ManualLogBottomSheet(
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(vertical = 6.dp)
                                     ) {
-                                        Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(text = "Income (+)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
-                                // Row 2: Amount Field (Mandatory)
+                                // Amount Field (Mandatory)
                                 Column {
                                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                         Text("Amount (Mandatory)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
@@ -295,7 +324,7 @@ fun ManualLogBottomSheet(
                                     )
                                 }
 
-                                // Row 3: Notes / Vendor Field
+                                // Notes / Vendor Field
                                 Column {
                                     Text("Notes / Payee", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
                                     Spacer(modifier = Modifier.height(3.dp))
@@ -614,24 +643,42 @@ fun ManualLogBottomSheet(
                                         items(installedPaymentApps) { app ->
                                             Surface(
                                                 onClick = {
-                                                    try {
-                                                        val upiUri = Uri.parse("upi://pay?am=$amount&tn=${Uri.encode(receiverVendor.ifBlank { "Payment" })}&cu=INR")
-                                                        val intent = Intent(Intent.ACTION_VIEW, upiUri)
-                                                        if (app.packageName.isNotEmpty()) {
-                                                            intent.setPackage(app.packageName)
-                                                        }
-                                                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                        context.startActivity(intent)
-                                                    } catch (e: Exception) {
-                                                        try {
-                                                            val pm = context.packageManager
-                                                            val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
-                                                            if (launchIntent != null) {
-                                                                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    val pm = context.packageManager
+                                                    var launched = false
+
+                                                    // Attempt 1: Main Launcher Intent (Guaranteed for PhonePe, GPay, Navi, SuperMoney, etc.)
+                                                    if (app.packageName.isNotEmpty()) {
+                                                        val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
+                                                        if (launchIntent != null) {
+                                                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            try {
                                                                 context.startActivity(launchIntent)
-                                                            }
-                                                        } catch (e2: Exception) {
-                                                            Toast.makeText(context, "Could not launch ${app.name}", Toast.LENGTH_SHORT).show()
+                                                                launched = true
+                                                            } catch (e: Exception) { }
+                                                        }
+                                                    }
+
+                                                    // Attempt 2: Direct upi://pay intent with package
+                                                    if (!launched && app.packageName.isNotEmpty()) {
+                                                        try {
+                                                            val upiUri = Uri.parse("upi://pay?am=$amount&tn=${Uri.encode(receiverVendor.ifBlank { "Payment" })}&cu=INR")
+                                                            val intent = Intent(Intent.ACTION_VIEW, upiUri)
+                                                            intent.setPackage(app.packageName)
+                                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            context.startActivity(intent)
+                                                            launched = true
+                                                        } catch (e: Exception) { }
+                                                    }
+
+                                                    // Attempt 3: Generic system UPI intent fallback
+                                                    if (!launched) {
+                                                        try {
+                                                            val upiUri = Uri.parse("upi://pay?am=$amount&tn=${Uri.encode(receiverVendor.ifBlank { "Payment" })}&cu=INR")
+                                                            val intent = Intent(Intent.ACTION_VIEW, upiUri)
+                                                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            context.startActivity(intent)
+                                                        } catch (e: Exception) {
+                                                            Toast.makeText(context, "Could not open ${app.name}", Toast.LENGTH_SHORT).show()
                                                         }
                                                     }
                                                     onDismissRequest()

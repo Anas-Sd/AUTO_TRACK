@@ -8,9 +8,13 @@
     <queries>
         <package android:name="com.google.android.apps.nbu.paisa.user" />
         <package android:name="com.phonepe.app" />
+        <package android:name="com.phonepe.android" />
         <package android:name="net.one97.paytm" />
         <package android:name="com.navi.android" />
+        <package android:name="com.naviapp" />
         <package android:name="tech.super.money" />
+        <package android:name="com.supermoney.app" />
+        <package android:name="money.super.app" />
         <package android:name="in.org.npci.upiapp" />
         <package android:name="com.dreamplug.androidapp" />
         <intent>
