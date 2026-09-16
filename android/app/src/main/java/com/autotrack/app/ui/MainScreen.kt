@@ -1,8 +1,10 @@
 package com.autotrack.app.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,14 +38,6 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -57,27 +52,18 @@ fun MainScreen(
 
     var transactions by remember { mutableStateOf<List<TransactionItem>>(emptyList()) }
     var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
-    var vaultCode by remember { mutableStateOf(DataSyncManager.getVaultCode() ?: "") }
-    var profileName by remember { mutableStateOf(DataSyncManager.getProfileName() ?: "") }
-    var isLoading by remember { mutableStateOf(false) }
+
+    var vaultCode by remember { mutableStateOf(DataSyncManager.getVaultCode() ?: "VAULT") }
+    var profileName by remember { mutableStateOf(DataSyncManager.getProfileName()) }
+
     var isRefreshing by remember { mutableStateOf(false) }
+    var pullOffsetY by remember { mutableFloatStateOf(0f) }
 
-    // Fetch transactions & categories from Supabase
     fun refreshData(isManualSwipe: Boolean = false) {
+        if (isRefreshing) return
+        isRefreshing = true
+
         scope.launch(Dispatchers.IO) {
-            if (isManualSwipe) {
-                withContext(Dispatchers.Main) { isRefreshing = true }
-            }
-
-            if (DataSyncManager.isOnline(context)) {
-                val flushed = DataSyncManager.flushOfflineQueueSync(context)
-                if (flushed > 0) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Synced $flushed queued offline transaction(s)!", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-
             val vault = DataSyncManager.getVaultCode() ?: return@launch
             val client = OkHttpClient()
 
@@ -249,6 +235,21 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            if (dragAmount > 0 && !isRefreshing) {
+                                pullOffsetY += dragAmount
+                                if (pullOffsetY > 140f) {
+                                    pullOffsetY = 0f
+                                    refreshData(isManualSwipe = true)
+                                }
+                            }
+                        },
+                        onDragEnd = { pullOffsetY = 0f },
+                        onDragCancel = { pullOffsetY = 0f }
+                    )
+                }
         ) {
             when (activeTab) {
                 "overview" -> OverviewScreen(transactions = transactions, categories = categories, userName = profileName)
