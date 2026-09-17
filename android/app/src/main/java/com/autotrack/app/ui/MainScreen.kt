@@ -150,6 +150,9 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         refreshData()
+        DataSyncManager.dataUpdateFlow.collect {
+            refreshData()
+        }
     }
 
     // NestedScrollConnection to intercept downward swipe/pull on LazyColumns across all tabs

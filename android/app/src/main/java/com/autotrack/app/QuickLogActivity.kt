@@ -86,7 +86,7 @@ class QuickLogActivity : ComponentActivity() {
                     onSaveTransaction = { amount, type, vendor, categoryId, method, note ->
                         scope.launch {
                             val ok = DataSyncManager.saveTransaction(
-                                context = this@QuickLogActivity,
+                                context = applicationContext,
                                 amount = amount,
                                 type = type,
                                 vendor = vendor,
@@ -95,19 +95,36 @@ class QuickLogActivity : ComponentActivity() {
                                 note = note,
                                 rawNotification = null
                             )
-                            if (ok) {
-                                Toast.makeText(this@QuickLogActivity, "Transaction saved!", Toast.LENGTH_SHORT).show()
+                            withContext(Dispatchers.Main) {
+                                if (ok) {
+                                    Toast.makeText(applicationContext, "Transaction saved successfully!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(applicationContext, "Transaction saved!", Toast.LENGTH_SHORT).show()
+                                }
                             }
+                            DataSyncManager.notifyDataChanged()
                         }
                     },
                     onCreateCategory = { name, icon, cap ->
                         scope.launch {
-                            DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                            val ok = DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                            withContext(Dispatchers.Main) {
+                                if (ok) {
+                                    Toast.makeText(applicationContext, "Category created successfully!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            DataSyncManager.notifyDataChanged()
                         }
                     },
                     onDeleteTransaction = { txId ->
                         scope.launch {
-                            DataSyncManager.deleteTransaction(txId)
+                            val ok = DataSyncManager.deleteTransaction(txId)
+                            withContext(Dispatchers.Main) {
+                                if (ok) {
+                                    Toast.makeText(applicationContext, "Transaction undone & deleted!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            DataSyncManager.notifyDataChanged()
                             finish()
                         }
                     }

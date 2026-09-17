@@ -8,6 +8,10 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -23,6 +27,16 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 object DataSyncManager {
+
+    private val _dataUpdateFlow = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val dataUpdateFlow: SharedFlow<Unit> = _dataUpdateFlow.asSharedFlow()
+
+    fun notifyDataChanged() {
+        _dataUpdateFlow.tryEmit(Unit)
+    }
 
     // Target deployed URL / fallback Supabase endpoint
     var WEB_BASE_URL = "https://kdiefrqgmoahpfcstbzc.supabase.co"
@@ -412,6 +426,9 @@ object DataSyncManager {
         rawNotification: String?
     ): Boolean {
         val res = saveTransactionWithStatus(context, amount, type, vendor, categoryId, sourceApp, note, rawNotification)
+        if (res != SaveResult.FAILED) {
+            notifyDataChanged()
+        }
         return res != SaveResult.FAILED
     }
 
@@ -462,6 +479,9 @@ object DataSyncManager {
                 .build()
 
             val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                notifyDataChanged()
+            }
             return@withContext res.isSuccessful
         } catch (e: Exception) {
             return@withContext false
@@ -497,6 +517,9 @@ object DataSyncManager {
                 .build()
 
             val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                notifyDataChanged()
+            }
             return@withContext res.isSuccessful
         } catch (e: Exception) {
             return@withContext false
@@ -523,6 +546,9 @@ object DataSyncManager {
                 .build()
 
             val res = client.newCall(req).execute()
+            if (res.isSuccessful) {
+                notifyDataChanged()
+            }
             return@withContext res.isSuccessful
         } catch (e: Exception) {
             return@withContext false
@@ -558,6 +584,7 @@ object DataSyncManager {
             val res = client.newCall(req).execute()
             if (res.isSuccessful) {
                 fetchCategories()
+                notifyDataChanged()
                 return@withContext true
             }
         } catch (e: Exception) {
@@ -565,6 +592,7 @@ object DataSyncManager {
         }
         try {
             fetchCategories()
+            notifyDataChanged()
         } catch (e: Exception) { }
         return@withContext true
     }
@@ -605,6 +633,7 @@ object DataSyncManager {
             val res = client.newCall(req).execute()
             if (res.isSuccessful) {
                 fetchCategories()
+                notifyDataChanged()
                 return@withContext true
             }
         } catch (e: Exception) {
@@ -613,6 +642,7 @@ object DataSyncManager {
 
         try {
             fetchCategories()
+            notifyDataChanged()
         } catch (e: Exception) { }
         return@withContext true
     }

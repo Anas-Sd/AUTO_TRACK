@@ -46,6 +46,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        DataSyncManager.notifyDataChanged()
+    }
+
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
         if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
             Toast.makeText(this, "Shortcut triggered via Volume Key: Ready to log transaction!", Toast.LENGTH_SHORT).show()
