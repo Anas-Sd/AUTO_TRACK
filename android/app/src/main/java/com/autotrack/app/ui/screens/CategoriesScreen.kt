@@ -30,14 +30,21 @@ import com.autotrack.app.data.Category
 import com.autotrack.app.data.TransactionItem
 import com.autotrack.app.ui.theme.*
 
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+
 @Composable
 fun CategoriesScreen(
     categories: List<Category>,
     transactions: List<TransactionItem>,
     onSelectCategory: (String) -> Unit,
-    onCreateCategory: (name: String, icon: String, cap: Double?) -> Unit
+    onCreateCategory: (name: String, icon: String, cap: Double?) -> Unit,
+    onUpdateCategory: (id: String, name: String, icon: String, cap: Double?) -> Unit = { _, _, _, _ -> },
+    onDeleteCategory: (id: String) -> Unit = {}
 ) {
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var deletingCategory by remember { mutableStateOf<Category?>(null) }
 
     val categoryStats = remember(transactions, categories) {
         val map = mutableMapOf<String, Pair<Double, Double>>() // categoryId -> (expense, income)
@@ -90,6 +97,8 @@ fun CategoriesScreen(
 
             Button(
                 onClick = {
+                    editingCategory = null
+                    deletingCategory = null
                     showCreateCategoryDialog = true
                 },
                 shape = RoundedCornerShape(10.dp),
@@ -225,6 +234,56 @@ fun CategoriesScreen(
                                             fontFamily = FontFamily.Monospace,
                                             color = TextMuted
                                         )
+                                    }
+                                }
+
+                                // Separate Edit & Delete Action Buttons
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Clean Edit Button Pill
+                                    Surface(
+                                        onClick = {
+                                            deletingCategory = null
+                                            showCreateCategoryDialog = false
+                                            editingCategory = cat
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = EmeraldPrimary.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f)),
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit Category",
+                                                tint = EmeraldPrimary,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // Clean Delete Button Pill
+                                    Surface(
+                                        onClick = {
+                                            editingCategory = null
+                                            showCreateCategoryDialog = false
+                                            deletingCategory = cat
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = RoseExpense.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, RoseExpense.copy(alpha = 0.4f)),
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Category",
+                                                tint = RoseExpense,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -437,6 +496,202 @@ fun CategoriesScreen(
                     }
                 }
             }
+        }
+
+        // Edit Category Dialog Modal
+        if (editingCategory != null) {
+            val catToEdit = editingCategory!!
+            var editName by remember(catToEdit.id) { mutableStateOf(catToEdit.name) }
+            var editIcon by remember(catToEdit.id) { mutableStateOf(catToEdit.icon) }
+            var editCapText by remember(catToEdit.id) {
+                mutableStateOf(catToEdit.monthlyCap?.let { if (it % 1 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+            }
+            var editError by remember { mutableStateOf<String?>(null) }
+            val quickIcons = listOf("🏷️", "🍔", "🛍️", "⚡", "🚗", "🎬", "💊", "💰", "📈", "🏠", "✈️", "🎮", "☕", "📱")
+
+            Dialog(
+                onDismissRequest = { editingCategory = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                        .statusBarsPadding(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .clickable { editingCategory = null }
+                    )
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(0.88f)
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        border = CardDefaults.outlinedCardBorder(enabled = true)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Edit Category", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                IconButton(onClick = { editingCategory = null }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                                }
+                            }
+
+                            Column {
+                                Text("Category Name", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = editName,
+                                    onValueChange = {
+                                        editName = it
+                                        editError = null
+                                    },
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = DarkBg,
+                                        unfocusedContainerColor = DarkBg,
+                                        focusedBorderColor = EmeraldPrimary,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            Column {
+                                Text("Choose Icon / Emoji", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(quickIcons) { ico ->
+                                        val isSelected = editIcon == ico
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(if (isSelected) EmeraldPrimary.copy(alpha = 0.25f) else DarkBg, RoundedCornerShape(8.dp))
+                                                .border(1.dp, if (isSelected) EmeraldPrimary else BorderColor, RoundedCornerShape(8.dp))
+                                                .clickable { editIcon = ico },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(ico, fontSize = 18.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Column {
+                                Text("Opening Balance / Cap (Optional ₹)", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = editCapText,
+                                    onValueChange = { editCapText = it },
+                                    placeholder = { Text("e.g. 5000", fontSize = 11.sp, color = TextMuted) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = DarkBg,
+                                        unfocusedContainerColor = DarkBg,
+                                        focusedBorderColor = EmeraldPrimary,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            if (editError != null) {
+                                Text(editError!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { editingCategory = null },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, BorderColor)
+                                ) {
+                                    Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (editName.isBlank()) {
+                                            editError = "Enter category name"
+                                            return@Button
+                                        }
+                                        val capVal = editCapText.toDoubleOrNull()
+                                        onUpdateCategory(catToEdit.id, editName.trim(), editIcon, capVal)
+                                        editingCategory = null
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                                ) {
+                                    Text("Save", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Delete Category Confirmation Modal
+        if (deletingCategory != null) {
+            val catToDelete = deletingCategory!!
+            AlertDialog(
+                onDismissRequest = { deletingCategory = null },
+                title = {
+                    Text("Delete Category", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text(
+                        "Are you sure you want to delete category \"${catToDelete.name}\"?\n\nAll existing transactions under this category will automatically be moved to Uncategorized.",
+                        fontSize = 12.sp,
+                        color = TextMuted
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val targetId = catToDelete.id
+                            deletingCategory = null
+                            onDeleteCategory(targetId)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Delete", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deletingCategory = null }) {
+                        Text("Cancel", color = TextMuted, fontSize = 12.sp)
+                    }
+                },
+                containerColor = CardBg
+            )
         }
     }
 }

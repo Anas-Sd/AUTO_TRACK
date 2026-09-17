@@ -296,6 +296,20 @@ fun MainScreen(
                                 refreshData()
                             }
                         }
+                    },
+                    onUpdateCategory = { id, name, icon, cap ->
+                        scope.launch {
+                            DataSyncManager.updateCategory(id, name, icon, "#10B981", cap)
+                            Toast.makeText(context, "Category updated!", Toast.LENGTH_SHORT).show()
+                            refreshData()
+                        }
+                    },
+                    onDeleteCategory = { catId ->
+                        scope.launch {
+                            DataSyncManager.deleteCategory(catId)
+                            Toast.makeText(context, "Category deleted! All items moved to Uncategorized.", Toast.LENGTH_SHORT).show()
+                            refreshData()
+                        }
                     }
                 )
                 "settings" -> SettingsScreen(
