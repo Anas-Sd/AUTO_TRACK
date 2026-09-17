@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,8 +17,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -150,6 +152,26 @@ fun MainScreen(
         refreshData()
     }
 
+    // NestedScrollConnection to intercept downward swipe/pull on LazyColumns across all tabs
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (available.y > 0 && !isRefreshing) {
+                    pullOffsetY += available.y
+                    if (pullOffsetY > 90f) {
+                        pullOffsetY = 0f
+                        refreshData(isManualSwipe = true)
+                    }
+                }
+                return super.onPostScroll(consumed, available, source)
+            }
+        }
+    }
+
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
@@ -235,21 +257,7 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { _, dragAmount ->
-                            if (dragAmount > 0 && !isRefreshing) {
-                                pullOffsetY += dragAmount
-                                if (pullOffsetY > 140f) {
-                                    pullOffsetY = 0f
-                                    refreshData(isManualSwipe = true)
-                                }
-                            }
-                        },
-                        onDragEnd = { pullOffsetY = 0f },
-                        onDragCancel = { pullOffsetY = 0f }
-                    )
-                }
+                .nestedScroll(nestedScrollConnection)
         ) {
             when (activeTab) {
                 "overview" -> OverviewScreen(transactions = transactions, categories = categories, userName = profileName)
