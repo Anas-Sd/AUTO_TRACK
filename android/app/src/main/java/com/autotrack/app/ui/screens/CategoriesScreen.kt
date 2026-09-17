@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -243,47 +244,47 @@ fun CategoriesScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     // Clean Edit Button Pill
-                                    Surface(
-                                        onClick = {
-                                            deletingCategory = null
-                                            showCreateCategoryDialog = false
-                                            editingCategory = cat
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = EmeraldPrimary.copy(alpha = 0.15f),
-                                        border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f)),
-                                        modifier = Modifier.size(32.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(EmeraldPrimary.copy(alpha = 0.15f))
+                                            .border(1.dp, EmeraldPrimary.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                deletingCategory = null
+                                                showCreateCategoryDialog = false
+                                                editingCategory = cat
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Edit,
-                                                contentDescription = "Edit Category",
-                                                tint = EmeraldPrimary,
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Category",
+                                            tint = EmeraldPrimary,
+                                            modifier = Modifier.size(15.dp)
+                                        )
                                     }
 
                                     // Clean Delete Button Pill
-                                    Surface(
-                                        onClick = {
-                                            editingCategory = null
-                                            showCreateCategoryDialog = false
-                                            deletingCategory = cat
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = RoseExpense.copy(alpha = 0.15f),
-                                        border = BorderStroke(1.dp, RoseExpense.copy(alpha = 0.4f)),
-                                        modifier = Modifier.size(32.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(RoseExpense.copy(alpha = 0.15f))
+                                            .border(1.dp, RoseExpense.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                editingCategory = null
+                                                showCreateCategoryDialog = false
+                                                deletingCategory = cat
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Delete Category",
-                                                tint = RoseExpense,
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Category",
+                                            tint = RoseExpense,
+                                            modifier = Modifier.size(15.dp)
+                                        )
                                     }
                                 }
                             }
