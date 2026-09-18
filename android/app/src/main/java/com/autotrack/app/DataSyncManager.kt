@@ -109,7 +109,29 @@ object DataSyncManager {
 
     fun saveProfileName(name: String) {
         ensureInit()
-        if (::prefs.isInitialized) prefs.edit().putString(KEY_PROFILE_NAME, name.trim()).apply()
+        val cleanName = name.trim()
+        if (cleanName.isNotEmpty() && ::prefs.isInitialized) {
+            prefs.edit().putString(KEY_PROFILE_NAME, cleanName).apply()
+        }
+        val vault = getVaultCode() ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val url = "$SUPABASE_URL/rest/v1/vault_codes?code=eq.$vault"
+                val payload = JSONObject().apply {
+                    put("label", cleanName)
+                }
+                val req = Request.Builder()
+                    .url(url)
+                    .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                    .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                    .addHeader("Content-Type", "application/json")
+                    .patch(payload.toString().toRequestBody(jsonMedia))
+                    .build()
+                client.newCall(req).execute()
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
     }
 
     fun getVaultCode(): String? {
@@ -264,6 +286,13 @@ object DataSyncManager {
                 val bodyStr = response.body?.string() ?: "[]"
                 val array = JSONArray(bodyStr)
                 if (array.length() > 0) {
+                    val obj = array.getJSONObject(0)
+                    if (obj.has("label") && !obj.isNull("label")) {
+                        val fetchedLabel = obj.optString("label", "").trim()
+                        if (fetchedLabel.isNotEmpty()) {
+                            if (::prefs.isInitialized) prefs.edit().putString(KEY_PROFILE_NAME, fetchedLabel).apply()
+                        }
+                    }
                     updateLastAccessed(cleanCode)
                     saveVaultCode(cleanCode)
                     saveSessionToken("vault_token_$cleanCode")

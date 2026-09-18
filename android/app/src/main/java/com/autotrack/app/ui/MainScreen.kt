@@ -138,6 +138,7 @@ fun MainScreen(
             }
 
             withContext(Dispatchers.Main) {
+                profileName = DataSyncManager.getProfileName()
                 categories = newCats
                 transactions = newTxs
                 isRefreshing = false
