@@ -4,9 +4,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,7 +31,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -38,9 +47,27 @@ import com.autotrack.app.data.Category
 import com.autotrack.app.data.TransactionItem
 import com.autotrack.app.ui.theme.*
 
+private fun Drawable.toImageBitmap(): ImageBitmap? {
+    return try {
+        if (this is BitmapDrawable && this.bitmap != null) {
+            return this.bitmap.asImageBitmap()
+        }
+        val w = if (intrinsicWidth > 0) intrinsicWidth else 96
+        val h = if (intrinsicHeight > 0) intrinsicHeight else 96
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        setBounds(0, 0, canvas.width, canvas.height)
+        draw(canvas)
+        bitmap.asImageBitmap()
+    } catch (e: Exception) {
+        null
+    }
+}
+
 private data class InstalledPaymentApp(
     val name: String,
     val packageName: String,
+    val iconBitmap: ImageBitmap?,
     val iconEmoji: String,
     val color: Color
 )
@@ -77,7 +104,7 @@ fun ManualLogBottomSheet(
     var paymentMethod by remember { mutableStateOf("UPI") }
     var showCreateCatDialog by remember { mutableStateOf(false) }
 
-    // Auto-discover installed payment apps dynamically
+    // Auto-discover installed payment apps dynamically with REAL app logos
     val installedPaymentApps = remember(context) {
         val pm = context.packageManager
 
@@ -93,10 +120,10 @@ fun ManualLogBottomSheet(
 
         val list = mutableListOf<InstalledPaymentApp>()
 
-        // 1. Scan configured app package aliases
+        // 1. Scan configured app package aliases and load official system icons
         for ((name, pair) in targetAppSpecs) {
             val (packages, meta) = pair
-            val (icon, color) = meta
+            val (iconEmoji, color) = meta
             var installedPkg = ""
             for (pkg in packages) {
                 val intent = pm.getLaunchIntentForPackage(pkg)
@@ -106,7 +133,12 @@ fun ManualLogBottomSheet(
                 }
             }
             if (installedPkg.isNotEmpty()) {
-                list.add(InstalledPaymentApp(name, installedPkg, icon, color))
+                val iconBmp = try {
+                    pm.getApplicationIcon(installedPkg).toImageBitmap()
+                } catch (e: Exception) {
+                    null
+                }
+                list.add(InstalledPaymentApp(name, installedPkg, iconBmp, iconEmoji, color))
             }
         }
 
@@ -117,12 +149,17 @@ fun ManualLogBottomSheet(
             val pkg = ri.activityInfo.packageName
             val label = ri.loadLabel(pm).toString()
             if (list.none { it.packageName == pkg }) {
-                list.add(InstalledPaymentApp(label.take(12), pkg, "📲", EmeraldPrimary))
+                val iconBmp = try {
+                    ri.loadIcon(pm).toImageBitmap()
+                } catch (e: Exception) {
+                    null
+                }
+                list.add(InstalledPaymentApp(label.take(12), pkg, iconBmp, "📲", EmeraldPrimary))
             }
         }
 
         if (list.isEmpty()) {
-            list.add(InstalledPaymentApp("UPI Apps", "", "📲", EmeraldPrimary))
+            list.add(InstalledPaymentApp("UPI Apps", "", null, "📲", EmeraldPrimary))
         }
         list
     }
@@ -141,28 +178,28 @@ fun ManualLogBottomSheet(
                 .statusBarsPadding(),
             contentAlignment = Alignment.TopCenter
         ) {
-            // Backdrop
+            // Backdrop with dark glass overlay
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.75f))
+                    .background(Color.Black.copy(alpha = 0.80f))
                     .clickable(onClick = onDismissRequest)
             )
 
-            // Main Popup Card
+            // Main Popup Card with modern styling
             Card(
                 modifier = Modifier
-                    .fillMaxWidth(0.90f)
-                    .padding(top = 28.dp, bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .fillMaxWidth(0.92f)
+                    .padding(top = 24.dp, bottom = 16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
-                border = CardDefaults.outlinedCardBorder(enabled = true)
+                border = BorderStroke(1.dp, BorderColor.copy(alpha = 0.8f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     /* ========================================================================= */
                     /* LEVEL 1: STARTING SELECTION SCREEN (Pic 1 - Level 1)                      */
@@ -173,39 +210,58 @@ fun ManualLogBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("AutoTrack Quick Action", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            IconButton(onClick = onDismissRequest, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                            Column {
+                                Text("AutoTrack Quick Action", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Select an action to proceed", fontSize = 11.sp, color = TextMuted)
+                            }
+                            IconButton(
+                                onClick = onDismissRequest,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(DarkBg, CircleShape)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted, modifier = Modifier.size(16.dp))
                             }
                         }
 
-                        HorizontalDivider(color = BorderColor)
+                        HorizontalDivider(color = BorderColor.copy(alpha = 0.6f))
 
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             // Option 1: LOG Transaction
-                            Button(
+                            Surface(
                                 onClick = {
                                     selectedMode = "log"
                                     level = 2
                                     errorMsg = null
                                     errorField = null
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                shape = RoundedCornerShape(14.dp),
+                                color = EmeraldPrimary.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("LOG Transaction", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(EmeraldPrimary.copy(alpha = 0.25f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("LOG Transaction", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("Manual entry for income & outcome logs", fontSize = 11.sp, color = TextMuted)
+                                    }
                                 }
                             }
 
                             // Option 2: Pay & Log
-                            Button(
+                            Surface(
                                 onClick = {
                                     selectedMode = "payment"
                                     type = "expense" // Pay is 100% Outcome / Expense
@@ -214,39 +270,61 @@ fun ManualLogBottomSheet(
                                     errorMsg = null
                                     errorField = null
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF0284C7).copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, Color(0xFF0284C7).copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.FlashOn, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Pay & Log", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(Color(0xFF0284C7).copy(alpha = 0.25f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.FlashOn, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("Pay & Log", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("Pay via UPI & copy amount to clipboard", fontSize = 11.sp, color = TextMuted)
+                                    }
                                 }
                             }
 
                             // Option 3: UNDO
-                            Button(
+                            Surface(
                                 onClick = {
                                     selectedMode = "undo"
                                     level = 2
                                     errorMsg = null
                                     errorField = null
                                 },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = RoseExpense),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                shape = RoundedCornerShape(14.dp),
+                                color = RoseExpense.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, RoseExpense.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("UNDO", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(RoseExpense.copy(alpha = 0.25f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = RoseExpense, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("UNDO", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("Delete & undo your most recent log", fontSize = 11.sp, color = TextMuted)
+                                    }
                                 }
                             }
                         }
@@ -263,15 +341,21 @@ fun ManualLogBottomSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                OutlinedButton(
+                                Surface(
                                     onClick = { level = 1 },
                                     shape = RoundedCornerShape(8.dp),
+                                    color = DarkBg,
                                     border = BorderStroke(1.dp, BorderColor),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.height(28.dp)
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp), tint = EmeraldPrimary)
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Menu", fontSize = 10.sp, color = Color.White)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(12.dp), tint = EmeraldPrimary)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Menu", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
                                 }
 
                                 Text("📝 Log Transaction", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -281,7 +365,7 @@ fun ManualLogBottomSheet(
                                 }
                             }
 
-                            HorizontalDivider(color = BorderColor)
+                            HorizontalDivider(color = BorderColor.copy(alpha = 0.6f))
 
                             // Toggle Row: Outcome vs Income
                             Row(
@@ -446,19 +530,25 @@ fun ManualLogBottomSheet(
                                     color = if (type == "expense") RoseExpense else EmeraldPrimary
                                 )
 
-                                OutlinedButton(
+                                Surface(
                                     onClick = { level = 2 },
                                     shape = RoundedCornerShape(8.dp),
+                                    color = DarkBg,
                                     border = BorderStroke(1.dp, BorderColor),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.height(28.dp)
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp), tint = EmeraldPrimary)
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Back", fontSize = 10.sp, color = Color.White)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(12.dp), tint = EmeraldPrimary)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Back", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
                                 }
                             }
 
-                            HorizontalDivider(color = BorderColor)
+                            HorizontalDivider(color = BorderColor.copy(alpha = 0.6f))
 
                             // Category Selector with [+] button
                             Row(
@@ -634,15 +724,21 @@ fun ManualLogBottomSheet(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                OutlinedButton(
+                                Surface(
                                     onClick = { level = 1 },
                                     shape = RoundedCornerShape(8.dp),
+                                    color = DarkBg,
                                     border = BorderStroke(1.dp, BorderColor),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.height(28.dp)
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp), tint = EmeraldPrimary)
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text("Menu", fontSize = 10.sp, color = Color.White)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(12.dp), tint = EmeraldPrimary)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Menu", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
                                 }
 
                                 Text("⚡ Pay & Log", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -652,7 +748,7 @@ fun ManualLogBottomSheet(
                                 }
                             }
 
-                            HorizontalDivider(color = BorderColor)
+                            HorizontalDivider(color = BorderColor.copy(alpha = 0.6f))
 
                             // Field 1: Amount (Mandatory *)
                             Column {
@@ -829,7 +925,7 @@ fun ManualLogBottomSheet(
                                 }
                             }
                         } else if (level == 3) {
-                            // Pic 2 - Level 3 (Pay & Log App Launcher Grid)
+                            // Pic 2 - Level 3 (Pay & Log App Launcher Grid with REAL OFFICIAL LOGOS)
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -842,19 +938,19 @@ fun ManualLogBottomSheet(
                                     }
                                 }
 
-                                HorizontalDivider(color = BorderColor)
+                                HorizontalDivider(color = BorderColor.copy(alpha = 0.6f))
 
                                 // Summary Card: Amount -> Notes -> Category
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = DarkBg),
                                     border = BorderStroke(1.dp, BorderColor),
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                             Text("Amount ->", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
-                                            Text("₹$amount", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = RoseExpense)
+                                            Text("₹$amount", fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = RoseExpense)
                                         }
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                             Text("Notes ->", fontSize = 11.sp, color = TextMuted, fontWeight = FontWeight.Bold)
@@ -876,9 +972,9 @@ fun ManualLogBottomSheet(
 
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(3),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.fillMaxWidth().height(170.dp)
                                 ) {
                                     items(installedPaymentApps) { app ->
                                         Surface(
@@ -923,20 +1019,30 @@ fun ManualLogBottomSheet(
                                                 }
                                                 onDismissRequest()
                                             },
-                                            shape = RoundedCornerShape(10.dp),
+                                            shape = RoundedCornerShape(14.dp),
                                             color = DarkBg,
-                                            border = BorderStroke(1.dp, app.color.copy(alpha = 0.5f))
+                                            border = BorderStroke(1.dp, app.color.copy(alpha = 0.4f))
                                         ) {
                                             Column(
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                                 verticalArrangement = Arrangement.Center,
                                                 modifier = Modifier.padding(10.dp)
                                             ) {
-                                                Text(app.iconEmoji, fontSize = 22.sp)
-                                                Spacer(modifier = Modifier.height(4.dp))
+                                                if (app.iconBitmap != null) {
+                                                    Image(
+                                                        bitmap = app.iconBitmap,
+                                                        contentDescription = app.name,
+                                                        modifier = Modifier
+                                                            .size(38.dp)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                    )
+                                                } else {
+                                                    Text(app.iconEmoji, fontSize = 24.sp)
+                                                }
+                                                Spacer(modifier = Modifier.height(6.dp))
                                                 Text(
                                                     text = app.name,
-                                                    fontSize = 10.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White
                                                 )
@@ -957,15 +1063,21 @@ fun ManualLogBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedButton(
+                            Surface(
                                 onClick = { level = 1 },
                                 shape = RoundedCornerShape(8.dp),
+                                color = DarkBg,
                                 border = BorderStroke(1.dp, BorderColor),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.height(28.dp)
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp), tint = EmeraldPrimary)
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("Menu", fontSize = 10.sp, color = Color.White)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(12.dp), tint = EmeraldPrimary)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Menu", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
                             }
 
                             Text("↺ Undo Recent Transaction", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -975,7 +1087,7 @@ fun ManualLogBottomSheet(
                             }
                         }
 
-                        HorizontalDivider(color = BorderColor)
+                        HorizontalDivider(color = BorderColor.copy(alpha = 0.6f))
 
                         if (latestTransaction == null) {
                             Box(
