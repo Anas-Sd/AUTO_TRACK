@@ -4,8 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Solid Thick White Lightning Bolt -->
+    <!-- Sleek Vertical Lightning Bolt Logo (Pic 1 Design) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M56,20 L28,54 L53,54 L41,88 L74,48 L49,48 Z" />
+        android:fillColor="#D9D9D9"
+        android:pathData="M60,19 L35,48 L55,48 L44,88 L72,44 L51,44 Z" />
 </vector>

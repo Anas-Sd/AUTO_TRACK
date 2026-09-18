@@ -103,6 +103,18 @@ fun ManualLogBottomSheet(
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     var paymentMethod by remember { mutableStateOf("UPI") }
     var showCreateCatDialog by remember { mutableStateOf(false) }
+    var pendingAutoSelectCatName by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(categories) {
+        val pending = pendingAutoSelectCatName
+        if (!pending.isNullOrBlank()) {
+            val newlyCreated = categories.find { it.name.equals(pending, ignoreCase = true) }
+            if (newlyCreated != null) {
+                selectedCategoryId = newlyCreated.id
+                pendingAutoSelectCatName = null
+            }
+        }
+    }
 
     // Auto-discover installed payment apps dynamically with REAL app logos
     val installedPaymentApps = remember(context) {
@@ -1212,9 +1224,12 @@ fun ManualLogBottomSheet(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newCatName.isNotBlank()) {
+                        val name = newCatName.trim()
+                        if (name.isNotBlank()) {
                             val cap = newCatCap.toDoubleOrNull()
-                            onCreateCategory(newCatName.trim(), newCatIcon.ifBlank { "🏷️" }, cap)
+                            val icon = newCatIcon.ifBlank { "🏷️" }
+                            pendingAutoSelectCatName = name
+                            onCreateCategory(name, icon, cap)
                             showCreateCatDialog = false
                         }
                     },

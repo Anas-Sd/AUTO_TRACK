@@ -111,9 +111,10 @@ fun OverviewScreen(
 
     // Filter transactions specifically for Donut & Category Breakdown
     val filteredDonutTransactions = remember(transactions, timeframeFilter, customStartDate, customEndDate) {
-        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val thisMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).format(Date())
-        val thisYearStr = SimpleDateFormat("yyyy", Locale.US).format(Date())
+        val istZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = istZone }.format(Date())
+        val thisMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).apply { timeZone = istZone }.format(Date())
+        val thisYearStr = SimpleDateFormat("yyyy", Locale.US).apply { timeZone = istZone }.format(Date())
 
         transactions.filter { t ->
             when (timeframeFilter) {

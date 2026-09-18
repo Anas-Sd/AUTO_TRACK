@@ -309,7 +309,7 @@ object DataSyncManager {
     private fun updateLastAccessed(code: String) {
         try {
             val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
+                timeZone = TimeZone.getTimeZone("Asia/Kolkata")
             }
             val url = "$SUPABASE_URL/rest/v1/vault_codes?code=eq.$code"
             val payload = JSONObject().apply {
@@ -399,7 +399,7 @@ object DataSyncManager {
         val vault = getVaultCode() ?: return@withContext SaveResult.FAILED
 
         val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
+            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
         }
         val occurredAt = isoFormat.format(Date())
 
@@ -555,8 +555,8 @@ object DataSyncManager {
         }
     }
 
-    suspend fun createCategory(name: String, icon: String, color: String = "#10B981", monthlyCap: Double? = null): Boolean = withContext(Dispatchers.IO) {
-        val vault = getVaultCode() ?: return@withContext false
+    suspend fun createCategoryAndGetId(name: String, icon: String, color: String = "#10B981", monthlyCap: Double? = null): String? = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext null
         try {
             val url = "$SUPABASE_URL/rest/v1/categories"
             val payload = JSONObject().apply {
@@ -571,17 +571,31 @@ object DataSyncManager {
                 .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
                 .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
                 .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=representation")
                 .post(payload.toString().toRequestBody(jsonMedia))
                 .build()
 
             val res = client.newCall(req).execute()
             if (res.isSuccessful) {
+                val bodyStr = res.body?.string() ?: "[]"
+                val arr = JSONArray(bodyStr)
+                fetchCategories()
                 notifyDataChanged()
+                if (arr.length() > 0) {
+                    return@withContext arr.getJSONObject(0).optString("id", "")
+                }
+                return@withContext ""
             }
-            return@withContext res.isSuccessful
+            fetchCategories()
+            notifyDataChanged()
+            return@withContext null
         } catch (e: Exception) {
-            return@withContext false
+            return@withContext null
         }
+    }
+
+    suspend fun createCategory(name: String, icon: String, color: String = "#10B981", monthlyCap: Double? = null): Boolean {
+        return createCategoryAndGetId(name, icon, color, monthlyCap) != null
     }
 
     suspend fun updateCategory(

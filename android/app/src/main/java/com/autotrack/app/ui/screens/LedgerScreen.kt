@@ -157,8 +157,9 @@ fun LedgerScreen(
         customStartDate,
         customEndDate
     ) {
-        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val thisMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).format(Date())
+        val istZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = istZone }.format(Date())
+        val thisMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).apply { timeZone = istZone }.format(Date())
 
         transactions.filter { t ->
             // Search Query
@@ -651,11 +652,12 @@ fun LedgerScreen(
                     // Format Date & Time separately
                     val (formattedDate, formattedTime) = remember(item.occurredAt) {
                         try {
-                            val input = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                            val istZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+                            val input = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = istZone }
                             val date = input.parse(item.occurredAt.take(19))
                             if (date != null) {
-                                val dateFmt = SimpleDateFormat("dd MMM", Locale.US)
-                                val timeFmt = SimpleDateFormat("hh:mm a", Locale.US)
+                                val dateFmt = SimpleDateFormat("dd MMM", Locale.US).apply { timeZone = istZone }
+                                val timeFmt = SimpleDateFormat("hh:mm a", Locale.US).apply { timeZone = istZone }
                                 Pair(dateFmt.format(date), timeFmt.format(date))
                             } else {
                                 Pair(item.occurredAt.take(10), "")

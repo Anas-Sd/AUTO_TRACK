@@ -51,6 +51,15 @@ android {
         viewBinding = true
         compose = true
     }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            if (output != null) {
+                output.outputFileName = "Auto_Track_${name}.apk"
+            }
+        }
+    }
 }
 
 dependencies {

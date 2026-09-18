@@ -438,7 +438,7 @@ fun MainScreen(
             },
             onCreateCategory = { name, icon, cap ->
                 scope.launch {
-                    DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                    DataSyncManager.createCategoryAndGetId(name, icon, "#10B981", cap)
                     refreshData()
                 }
             },
