@@ -56,7 +56,7 @@ android {
         outputs.all {
             val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
             if (output != null) {
-                output.outputFileName = "Auto_Track_${name}.apk"
+                output.outputFileName = if (name == "release") "AUTO_TRACK.apk" else "AUTO_TRACK_${name}.apk"
             }
         }
     }
