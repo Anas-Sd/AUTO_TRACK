@@ -497,7 +497,7 @@ fun CategoriesScreen(
                 }
             }
         }
-
+    }
         // Edit Category Dialog Modal
         if (editingCategory != null) {
             val catToEdit = editingCategory!!
@@ -694,4 +694,3 @@ fun CategoriesScreen(
             )
         }
     }
-}
