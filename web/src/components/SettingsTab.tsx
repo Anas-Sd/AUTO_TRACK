@@ -2,16 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/authContext";
-import ConfirmModal from "./ConfirmModal";
 import {
   Settings,
   Shield,
   Check,
   LogOut,
   Save,
-  Trash2,
   Radio,
-  Loader2,
 } from "lucide-react";
 
 export default function SettingsTab() {
@@ -19,22 +16,11 @@ export default function SettingsTab() {
     vaultLabel,
     updateVaultLabel,
     logoutVault,
-    wipeVaultData,
-    deleteVaultPermanently,
   } = useAuth();
 
   const [labelInput, setLabelInput] = useState(vaultLabel);
   const [isSavingLabel, setIsSavingLabel] = useState(false);
   const [labelSavedSuccess, setLabelSavedSuccess] = useState(false);
-
-  // Wipe Data states
-  const [isWipingData, setIsWipingData] = useState(false);
-  const [wipeConfirmOpen, setWipeConfirmOpen] = useState(false);
-  const [wipeSuccessMsg, setWipeSuccessMsg] = useState<string | null>(null);
-
-  // Delete Vault Account states
-  const [isDeletingVault, setIsDeletingVault] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     setLabelInput(vaultLabel);
@@ -50,24 +36,6 @@ export default function SettingsTab() {
     setTimeout(() => setLabelSavedSuccess(false), 2000);
   };
 
-  const handlePerformWipe = async () => {
-    setIsWipingData(true);
-    const ok = await wipeVaultData();
-    setIsWipingData(false);
-    setWipeConfirmOpen(false);
-    if (ok) {
-      setWipeSuccessMsg("All transactions and categories have been permanently wiped.");
-      setTimeout(() => setWipeSuccessMsg(null), 5000);
-    }
-  };
-
-  const handlePerformDeleteVault = async () => {
-    setIsDeletingVault(true);
-    await deleteVaultPermanently();
-    setIsDeletingVault(false);
-    setDeleteConfirmOpen(false);
-  };
-
   return (
     <div className="space-y-6 max-w-3xl pb-32 md:pb-8">
       {/* Header */}
@@ -77,7 +45,7 @@ export default function SettingsTab() {
           Settings
         </h2>
         <p className="text-xs text-slate-400">
-          Manage your vault profile and data storage
+          Manage your vault profile and account session
         </p>
       </div>
 
@@ -147,98 +115,26 @@ export default function SettingsTab() {
         </div>
       </div>
 
-      {/* 3. Danger Zone: Wipe Data, Logout, & Delete Account */}
-      <div className="bg-[#131A26] border border-rose-500/20 rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
-        {/* Wipe Data */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-rose-500/20">
+      {/* 3. Account Session: Log Out Only */}
+      <div className="bg-[#131A26] border border-[#1E293B] rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h4 className="text-sm font-bold text-rose-400 flex items-center gap-2">
-              <Trash2 className="w-4 h-4 text-rose-400" /> Clear All Data
+            <h4 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+              <LogOut className="w-4 h-4 text-emerald-400" /> Account Session
             </h4>
             <p className="text-xs text-slate-400 mt-0.5">
-              Permanently delete all transactions and categories in this vault.
-            </p>
-          </div>
-          <button
-            onClick={() => setWipeConfirmOpen(true)}
-            disabled={isWipingData}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-          >
-            {isWipingData ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-            <span>Wipe All Data</span>
-          </button>
-        </div>
-
-        {wipeSuccessMsg && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center gap-2">
-            <Check className="w-4 h-4" />
-            <span>{wipeSuccessMsg}</span>
-          </div>
-        )}
-
-        {/* Lock & Logout */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#1E293B]">
-          <div>
-            <h4 className="text-sm font-bold text-slate-300">Lock & Log Out</h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Clears session. You will need your vault code to re-enter.
+              Clears session. You will need your vault code to log back in.
             </p>
           </div>
           <button
             onClick={logoutVault}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 text-emerald-400" />
             <span>Log Out</span>
           </button>
         </div>
-
-        {/* Delete Vault Code Permanently */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-rose-500/30">
-          <div>
-            <h4 className="text-sm font-bold text-rose-500 flex items-center gap-2">
-              <Trash2 className="w-4 h-4 text-rose-500" /> Delete Vault Account
-            </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Permanently delete this Vault Code and all data from database.
-            </p>
-          </div>
-          <button
-            onClick={() => setDeleteConfirmOpen(true)}
-            disabled={isDeletingVault}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-          >
-            {isDeletingVault ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-            <span>Delete Account</span>
-          </button>
-        </div>
       </div>
-
-      <ConfirmModal
-        isOpen={wipeConfirmOpen}
-        title="Wipe All Vault Data"
-        message="Are you sure you want to permanently delete ALL transactions and categories in this vault? This cannot be undone."
-        confirmText="Yes, Delete Everything"
-        onConfirm={handlePerformWipe}
-        onClose={() => setWipeConfirmOpen(false)}
-      />
-
-      <ConfirmModal
-        isOpen={deleteConfirmOpen}
-        title="Delete Vault Account Permanently"
-        message="Are you sure you want to PERMANENTLY DELETE this Vault Code along with ALL transactions and records from the database? This action CANNOT be undone."
-        confirmText="Yes, Permanently Delete Account"
-        onConfirm={handlePerformDeleteVault}
-        onClose={() => setDeleteConfirmOpen(false)}
-      />
     </div>
   );
 }

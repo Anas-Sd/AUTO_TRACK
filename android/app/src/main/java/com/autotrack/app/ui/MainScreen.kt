@@ -337,8 +337,24 @@ fun MainScreen(
                     },
                     onWipeData = {
                         scope.launch {
-                            DataSyncManager.wipeVaultData()
+                            val ok = DataSyncManager.wipeVaultData()
+                            if (ok) {
+                                Toast.makeText(context, "All transactions and categories wiped!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Wipe completed", Toast.LENGTH_SHORT).show()
+                            }
                             refreshData()
+                        }
+                    },
+                    onDeleteVault = {
+                        scope.launch {
+                            val ok = DataSyncManager.deleteVault()
+                            if (ok) {
+                                Toast.makeText(context, "Vault Code and all data deleted.", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(context, "Vault deleted.", Toast.LENGTH_LONG).show()
+                            }
+                            onLogoutRequest()
                         }
                     },
                     onLogout = {

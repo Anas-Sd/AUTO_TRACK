@@ -750,19 +750,86 @@ object DataSyncManager {
 
     suspend fun wipeVaultData(): Boolean = withContext(Dispatchers.IO) {
         val vault = getVaultCode() ?: return@withContext false
-        val token = getSessionToken()
-        val url = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault"
-        val reqBuilder = Request.Builder()
-            .url(url)
-            .addHeader("apikey", SUPABASE_ANON_KEY)
-            .delete()
-        if (!token.isNullOrEmpty()) {
-            reqBuilder.addHeader("Authorization", "Bearer $token")
-        }
         try {
-            val res = client.newCall(reqBuilder.build()).execute()
-            return@withContext res.isSuccessful
+            // 1. Delete all transactions for this vault code
+            val txUrl = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault"
+            val txReq = Request.Builder()
+                .url(txUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+            client.newCall(txReq).execute()
+
+            // 2. Delete all categories for this vault code
+            val catUrl = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault"
+            val catReq = Request.Builder()
+                .url(catUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+            client.newCall(catReq).execute()
+
+            // 3. Clear offline db queue
+            if (::dbHelper.isInitialized) {
+                dbHelper.clearAll()
+            }
+
+            // 4. Clear local categories cache & notify listeners
+            setCachedCategories("[]")
+            notifyDataChanged()
+            return@withContext true
         } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
+    suspend fun deleteVault(): Boolean = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext false
+        try {
+            // 1. Delete all transactions for this vault code
+            val txUrl = "$SUPABASE_URL/rest/v1/transactions?vault_code=eq.$vault"
+            val txReq = Request.Builder()
+                .url(txUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+            client.newCall(txReq).execute()
+
+            // 2. Delete all categories for this vault code
+            val catUrl = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault"
+            val catReq = Request.Builder()
+                .url(catUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+            client.newCall(catReq).execute()
+
+            // 3. Delete vault code entry in vault_codes table
+            val vaultUrl = "$SUPABASE_URL/rest/v1/vault_codes?code=eq.$vault"
+            val vaultReq = Request.Builder()
+                .url(vaultUrl)
+                .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+                .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+                .delete()
+                .build()
+            client.newCall(vaultReq).execute()
+
+            // 4. Clear offline db queue
+            if (::dbHelper.isInitialized) {
+                dbHelper.clearAll()
+            }
+
+            // 5. Clear local storage preferences
+            clearVault()
+            notifyDataChanged()
+            return@withContext true
+        } catch (e: Exception) {
+            e.printStackTrace()
             return@withContext false
         }
     }

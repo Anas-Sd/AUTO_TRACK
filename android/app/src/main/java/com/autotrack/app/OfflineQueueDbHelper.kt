@@ -65,4 +65,9 @@ class OfflineQueueDbHelper(context: Context) : SQLiteOpenHelper(context, DATABAS
         val db = writableDatabase
         db.delete(TABLE_QUEUE, "$COLUMN_ID = ?", arrayOf(id.toString()))
     }
+
+    fun clearAll() {
+        val db = writableDatabase
+        db.delete(TABLE_QUEUE, null, null)
+    }
 }

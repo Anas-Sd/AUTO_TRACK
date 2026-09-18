@@ -34,6 +34,7 @@ fun SettingsScreen(
     onSaveProfileName: (String) -> Unit,
     onRotateCode: (customCode: String?) -> Unit,
     onWipeData: () -> Unit,
+    onDeleteVault: () -> Unit,
     onLogout: () -> Unit,
     onSyncQueue: () -> Unit = {}
 ) {
@@ -41,6 +42,7 @@ fun SettingsScreen(
     var showCode by remember { mutableStateOf(false) }
     var showRotateDialog by remember { mutableStateOf(false) }
     var showWipeDialog by remember { mutableStateOf(false) }
+    var showDeleteVaultDialog by remember { mutableStateOf(false) }
 
     var nameInput by remember { mutableStateOf(profileName) }
 
@@ -344,7 +346,7 @@ fun SettingsScreen(
             }
         }
 
-        // 5. Danger Zone Card
+        // 5. Account & Vault Management Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -353,36 +355,17 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("Account & Vault Management", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+
+                    // 1. Log Out
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Clear All Data", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RoseExpense)
-                            Text("Permanently delete all transactions & categories in vault", fontSize = 10.sp, color = TextMuted)
-                        }
-                        Button(
-                            onClick = { showWipeDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = RoseExpense.copy(alpha = 0.2f)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = RoseExpense, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Wipe Data", fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    HorizontalDivider(color = BorderColor)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Lock & Log Out", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("Clears active session token", fontSize = 10.sp, color = TextMuted)
+                            Text("Log Out", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Clears session token from this device", fontSize = 10.sp, color = TextMuted)
                         }
                         OutlinedButton(
                             onClick = onLogout,
@@ -391,6 +374,52 @@ fun SettingsScreen(
                             Icon(Icons.Default.Logout, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Log Out", fontSize = 11.sp, color = Color.White)
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderColor)
+
+                    // 2. Wipe All Data
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Wipe All Data", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AmberWarning)
+                            Text("Erases all transactions & categories (keeps Vault Code)", fontSize = 10.sp, color = TextMuted)
+                        }
+                        Button(
+                            onClick = { showWipeDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = AmberWarning.copy(alpha = 0.2f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Wipe Data", fontSize = 11.sp, color = AmberWarning, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderColor)
+
+                    // 3. Delete Vault Code
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Delete Vault Code", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = RoseExpense)
+                            Text("Permanently erases Vault Code and all database data", fontSize = 10.sp, color = TextMuted)
+                        }
+                        Button(
+                            onClick = { showDeleteVaultDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = RoseExpense.copy(alpha = 0.2f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteForever, contentDescription = null, tint = RoseExpense, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Delete Vault", fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -466,21 +495,44 @@ fun SettingsScreen(
     if (showWipeDialog) {
         AlertDialog(
             onDismissRequest = { showWipeDialog = false },
-            title = { Text("Wipe All Vault Data", color = RoseExpense, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to permanently delete ALL transactions and categories? This action cannot be undone.", fontSize = 12.sp, color = TextMuted) },
+            title = { Text("Wipe All Vault Data", color = AmberWarning, fontSize = 15.sp, fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to erase ALL transactions and categories? Your Vault Code ($vaultCode) will remain active.", fontSize = 12.sp, color = TextMuted) },
             confirmButton = {
                 Button(
                     onClick = {
                         onWipeData()
                         showWipeDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RoseExpense)
+                    colors = ButtonDefaults.buttonColors(containerColor = AmberWarning)
                 ) {
-                    Text("Wipe Data")
+                    Text("Wipe All Data", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showWipeDialog = false }) { Text("Cancel", color = TextMuted) }
+            },
+            containerColor = CardBg
+        )
+    }
+
+    if (showDeleteVaultDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteVaultDialog = false },
+            title = { Text("Delete Vault Code & All Data", color = RoseExpense, fontSize = 15.sp, fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to PERMANENTLY DELETE Vault Code '$vaultCode' along with all transactions and categories? This action CANNOT be undone and will log you out.", fontSize = 12.sp, color = TextMuted) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteVault()
+                        showDeleteVaultDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RoseExpense)
+                ) {
+                    Text("Delete Vault", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteVaultDialog = false }) { Text("Cancel", color = TextMuted) }
             },
             containerColor = CardBg
         )
