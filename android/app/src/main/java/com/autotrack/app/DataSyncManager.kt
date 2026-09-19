@@ -193,7 +193,75 @@ object DataSyncManager {
     }
 
     fun setCachedCategories(categoriesJson: String) {
-        prefs.edit().putString(KEY_CACHED_CATEGORIES, categoriesJson).apply()
+        ensureInit()
+        if (::prefs.isInitialized) prefs.edit().putString(KEY_CACHED_CATEGORIES, categoriesJson).apply()
+    }
+
+    fun parseCategoriesJson(jsonStr: String): List<com.autotrack.app.data.Category> {
+        val list = mutableListOf<com.autotrack.app.data.Category>()
+        try {
+            val array = JSONArray(jsonStr)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    com.autotrack.app.data.Category(
+                        id = obj.optString("id", ""),
+                        name = obj.optString("name", "Category"),
+                        icon = obj.optString("icon", "🏷️"),
+                        color = obj.optString("color", "#10B981"),
+                        monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else null
+                    )
+                )
+            }
+        } catch (e: Exception) { }
+        return list
+    }
+
+    fun getCachedCategoryObjects(): List<com.autotrack.app.data.Category> {
+        ensureInit()
+        val raw = if (::prefs.isInitialized) prefs.getString(KEY_CACHED_CATEGORIES, null) else null
+        return if (!raw.isNullOrBlank()) parseCategoriesJson(raw) else emptyList()
+    }
+
+    fun addCategoryToLocalCache(category: com.autotrack.app.data.Category) {
+        ensureInit()
+        if (!::prefs.isInitialized) return
+        val existingObjects = getCachedCategoryObjects().toMutableList()
+        existingObjects.removeAll { it.id == category.id || it.name.equals(category.name, ignoreCase = true) }
+        existingObjects.add(category)
+
+        val array = JSONArray()
+        existingObjects.forEach { cat ->
+            val obj = JSONObject().apply {
+                put("id", cat.id)
+                put("name", cat.name)
+                put("icon", cat.icon)
+                put("color", cat.color)
+                if (cat.monthlyCap != null) put("monthly_cap", cat.monthlyCap)
+            }
+            array.put(obj)
+        }
+        setCachedCategories(array.toString())
+    }
+
+    suspend fun fetchCategoryObjects(): List<com.autotrack.app.data.Category> = withContext(Dispatchers.IO) {
+        val vault = getVaultCode() ?: return@withContext getCachedCategoryObjects()
+        val url = "$SUPABASE_URL/rest/v1/categories?vault_code=eq.$vault&select=id,name,icon,color,monthly_cap"
+        val reqBuilder = Request.Builder()
+            .url(url)
+            .addHeader("apikey", SUPABASE_SERVICE_ROLE_KEY)
+            .addHeader("Authorization", "Bearer $SUPABASE_SERVICE_ROLE_KEY")
+            .get()
+
+        try {
+            val res = client.newCall(reqBuilder.build()).execute()
+            if (res.isSuccessful) {
+                val body = res.body?.string() ?: "[]"
+                setCachedCategories(body)
+                return@withContext parseCategoriesJson(body)
+            }
+        } catch (e: Exception) { }
+        return@withContext getCachedCategoryObjects()
     }
 
     suspend fun createVault(label: String = "My Vault"): String? = withContext(Dispatchers.IO) {
@@ -587,19 +655,46 @@ object DataSyncManager {
             if (res.isSuccessful) {
                 val bodyStr = res.body?.string() ?: "[]"
                 val arr = JSONArray(bodyStr)
+                var createdId = ""
+                if (arr.length() > 0) {
+                    val obj = arr.getJSONObject(0)
+                    createdId = obj.optString("id", "")
+                    val newCat = com.autotrack.app.data.Category(
+                        id = createdId,
+                        name = obj.optString("name", name),
+                        icon = obj.optString("icon", icon),
+                        color = obj.optString("color", color),
+                        monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else monthlyCap
+                    )
+                    addCategoryToLocalCache(newCat)
+                } else {
+                    val fallbackCat = com.autotrack.app.data.Category(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = name,
+                        icon = icon,
+                        color = color,
+                        monthlyCap = monthlyCap
+                    )
+                    addCategoryToLocalCache(fallbackCat)
+                    createdId = fallbackCat.id
+                }
                 fetchCategories()
                 notifyDataChanged()
-                if (arr.length() > 0) {
-                    return@withContext arr.getJSONObject(0).optString("id", "")
-                }
-                return@withContext ""
+                return@withContext createdId
             }
-            fetchCategories()
-            notifyDataChanged()
-            return@withContext null
         } catch (e: Exception) {
-            return@withContext null
+            e.printStackTrace()
         }
+        val fallbackCat = com.autotrack.app.data.Category(
+            id = java.util.UUID.randomUUID().toString(),
+            name = name,
+            icon = icon,
+            color = color,
+            monthlyCap = monthlyCap
+        )
+        addCategoryToLocalCache(fallbackCat)
+        notifyDataChanged()
+        return@withContext fallbackCat.id
     }
 
     suspend fun createCategory(name: String, icon: String, color: String = "#10B981", monthlyCap: Double? = null): Boolean {

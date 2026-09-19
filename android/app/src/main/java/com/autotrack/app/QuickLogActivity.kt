@@ -11,9 +11,6 @@ import com.autotrack.app.ui.theme.AutoTrackTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONArray
 
 class QuickLogActivity : ComponentActivity() {
 
@@ -25,48 +22,16 @@ class QuickLogActivity : ComponentActivity() {
 
         setContent {
             AutoTrackTheme {
-                var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
+                var categories by remember { mutableStateOf<List<Category>>(DataSyncManager.getCachedCategoryObjects()) }
                 var latestTx by remember { mutableStateOf<com.autotrack.app.data.TransactionItem?>(null) }
                 val scope = rememberCoroutineScope()
 
                 suspend fun refreshShortcutCategoriesAndData() {
-                    val vault = DataSyncManager.getVaultCode() ?: return
-                    val client = OkHttpClient()
-                    val catUrl = "${DataSyncManager.SUPABASE_URL}/rest/v1/categories?vault_code=eq.$vault&select=id,name,icon,color,monthly_cap"
-                    val catReq = Request.Builder()
-                        .url(catUrl)
-                        .addHeader("apikey", DataSyncManager.SUPABASE_SERVICE_ROLE_KEY)
-                        .addHeader("Authorization", "Bearer ${DataSyncManager.SUPABASE_SERVICE_ROLE_KEY}")
-                        .get()
-                        .build()
-
-                    val newCats = mutableListOf<Category>()
-                    try {
-                        val res = client.newCall(catReq).execute()
-                        if (res.isSuccessful) {
-                            val body = res.body?.string() ?: "[]"
-                            val array = JSONArray(body)
-                            for (i in 0 until array.length()) {
-                                val obj = array.getJSONObject(i)
-                                newCats.add(
-                                    Category(
-                                        id = obj.optString("id", ""),
-                                        name = obj.optString("name", "Category"),
-                                        icon = obj.optString("icon", "🏷️"),
-                                        color = obj.optString("color", "#10B981"),
-                                        monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else null
-                                    )
-                                )
-                            }
-                        }
-                    } catch (e: Exception) {
-                        // offline
-                    }
-
+                    val catList = DataSyncManager.fetchCategoryObjects()
                     val fetchedLatest = DataSyncManager.fetchLatestTransaction()
 
                     withContext(Dispatchers.Main) {
-                        categories = newCats
+                        categories = catList
                         latestTx = fetchedLatest
                     }
                 }
@@ -82,7 +47,14 @@ class QuickLogActivity : ComponentActivity() {
                     refreshShortcutCategoriesAndData()
 
                     DataSyncManager.dataUpdateFlow.collect {
-                        refreshShortcutCategoriesAndData()
+                        val updatedCats = DataSyncManager.getCachedCategoryObjects()
+                        val fetchedLatest = DataSyncManager.fetchLatestTransaction()
+                        withContext(Dispatchers.Main) {
+                            if (updatedCats.isNotEmpty()) {
+                                categories = updatedCats
+                            }
+                            latestTx = fetchedLatest
+                        }
                     }
                 }
 
@@ -92,7 +64,7 @@ class QuickLogActivity : ComponentActivity() {
                     latestTransaction = latestTx,
                     onSaveTransaction = { amount, type, vendor, categoryId, method, note, occurredAt ->
                         scope.launch {
-                            val ok = DataSyncManager.saveTransaction(
+                            val saveRes = DataSyncManager.saveTransactionWithStatus(
                                 context = applicationContext,
                                 amount = amount,
                                 type = type,
@@ -104,10 +76,12 @@ class QuickLogActivity : ComponentActivity() {
                                 customOccurredAt = occurredAt
                             )
                             withContext(Dispatchers.Main) {
-                                if (ok) {
-                                    Toast.makeText(applicationContext, "Transaction saved successfully!", Toast.LENGTH_SHORT).show()
-                                } else {
+                                if (saveRes == DataSyncManager.SaveResult.SAVED_ONLINE) {
                                     Toast.makeText(applicationContext, "Transaction saved!", Toast.LENGTH_SHORT).show()
+                                } else if (saveRes == DataSyncManager.SaveResult.QUEUED_OFFLINE) {
+                                    Toast.makeText(applicationContext, "Transaction queued (offline)", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(applicationContext, "Failed to save transaction", Toast.LENGTH_SHORT).show()
                                 }
                             }
                             DataSyncManager.notifyDataChanged()
@@ -120,9 +94,8 @@ class QuickLogActivity : ComponentActivity() {
                                 if (newId != null) {
                                     Toast.makeText(applicationContext, "Category created successfully!", Toast.LENGTH_SHORT).show()
                                 }
+                                categories = DataSyncManager.getCachedCategoryObjects()
                             }
-                            refreshShortcutCategoriesAndData()
-                            DataSyncManager.notifyDataChanged()
                         }
                     },
                     onDeleteTransaction = { txId ->
