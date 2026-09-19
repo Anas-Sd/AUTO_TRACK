@@ -75,11 +75,15 @@ fun CategoriesScreen(
         Triple(spent, income, count)
     }
 
-    val filteredCategories = remember(categories, searchQuery) {
+    val sortedCategoriesByRecency = remember(categories, transactions) {
+        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(categories, transactions)
+    }
+
+    val filteredCategories = remember(sortedCategoriesByRecency, searchQuery) {
         if (searchQuery.isBlank()) {
-            categories
+            sortedCategoriesByRecency
         } else {
-            categories.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+            sortedCategoriesByRecency.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
         }
     }
 

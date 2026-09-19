@@ -34,11 +34,29 @@ export default function CategoriesTab() {
   const [deleteConfirmCat, setDeleteConfirmCat] = useState<{ id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const sortedCategories = useMemo(() => {
+    if (transactions.length === 0) return [...categories].sort((a, b) => a.name.localeCompare(b.name));
+    const catLastUsedMap = new Map<string, number>();
+    transactions.forEach((t, idx) => {
+      if (t.category_id && !catLastUsedMap.has(t.category_id)) {
+        catLastUsedMap.set(t.category_id, idx);
+      }
+    });
+    return [...categories].sort((a, b) => {
+      const idxA = catLastUsedMap.get(a.id);
+      const idxB = catLastUsedMap.get(b.id);
+      if (idxA !== undefined && idxB !== undefined) return idxA - idxB;
+      if (idxA !== undefined) return -1;
+      if (idxB !== undefined) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [categories, transactions]);
+
   const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return categories;
+    if (!searchQuery.trim()) return sortedCategories;
     const q = searchQuery.toLowerCase().trim();
-    return categories.filter((cat) => cat.name.toLowerCase().includes(q));
-  }, [categories, searchQuery]);
+    return sortedCategories.filter((cat) => cat.name.toLowerCase().includes(q));
+  }, [sortedCategories, searchQuery]);
 
   // Compute total expense & income per category across ALL time
   const categoryStats = useMemo(() => {
