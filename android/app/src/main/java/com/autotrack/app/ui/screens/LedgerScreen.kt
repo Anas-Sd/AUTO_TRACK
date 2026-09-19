@@ -145,6 +145,28 @@ fun LedgerScreen(
         }.distinct().sortedDescending()
     }
 
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    val sortedCategoriesForFilter = remember(categories, transactions) {
+        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(categories, transactions)
+    }
+
+    LaunchedEffect(
+        searchQuery,
+        selectedTimeframe,
+        selectedMonth,
+        selectedCategoryFilter,
+        selectedTypeFilter,
+        selectedSourceFilter,
+        selectedSort,
+        customStartDate,
+        customEndDate
+    ) {
+        try {
+            listState.scrollToItem(0)
+        } catch (_: Exception) {}
+    }
+
     // Filter & Sort Logic
     val filteredTransactions = remember(
         transactions,
@@ -342,7 +364,7 @@ fun LedgerScreen(
                 DropdownMenu(
                     expanded = isSortMenuExpanded,
                     onDismissRequest = { isSortMenuExpanded = false },
-                    modifier = Modifier.background(CardBg).border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+                    modifier = Modifier.heightIn(max = 210.dp).background(CardBg).border(1.dp, BorderColor, RoundedCornerShape(12.dp))
                 ) {
                     listOf("Newest First", "Oldest First", "Amount High-Low", "Amount Low-High").forEach { option ->
                         val isSelected = selectedSort == option
@@ -522,7 +544,7 @@ fun LedgerScreen(
                             DropdownMenu(
                                 expanded = categoryDropdownExpanded,
                                 onDismissRequest = { categoryDropdownExpanded = false },
-                                modifier = Modifier.background(CardBg)
+                                modifier = Modifier.heightIn(max = 210.dp).background(CardBg)
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("All Categories", fontSize = 11.sp, color = Color.White) },
@@ -538,7 +560,7 @@ fun LedgerScreen(
                                         categoryDropdownExpanded = false
                                     }
                                 )
-                                categories.forEach { cat ->
+                                sortedCategoriesForFilter.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text("${cat.icon} ${cat.name}", fontSize = 11.sp, color = Color.White) },
                                         onClick = {
@@ -570,7 +592,7 @@ fun LedgerScreen(
                             DropdownMenu(
                                 expanded = typeDropdownExpanded,
                                 onDismissRequest = { typeDropdownExpanded = false },
-                                modifier = Modifier.background(CardBg)
+                                modifier = Modifier.heightIn(max = 210.dp).background(CardBg)
                             ) {
                                 listOf("All", "Income", "Outcome").forEach { tOption ->
                                     DropdownMenuItem(
@@ -604,7 +626,7 @@ fun LedgerScreen(
                             DropdownMenu(
                                 expanded = sourceDropdownExpanded,
                                 onDismissRequest = { sourceDropdownExpanded = false },
-                                modifier = Modifier.background(CardBg)
+                                modifier = Modifier.heightIn(max = 210.dp).background(CardBg)
                             ) {
                                 listOf("All", "UPI", "Cash").forEach { sOption ->
                                     DropdownMenuItem(
@@ -641,6 +663,7 @@ fun LedgerScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 90.dp)

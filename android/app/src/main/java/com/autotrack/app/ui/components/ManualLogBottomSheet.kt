@@ -155,6 +155,13 @@ fun ManualLogBottomSheet(
     var showCreateCatDialog by remember { mutableStateOf(false) }
     var pendingAutoSelectCatName by remember { mutableStateOf<String?>(null) }
 
+    val sortedCategories = remember(categories, latestTransaction) {
+        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(
+            categories,
+            if (latestTransaction != null) listOf(latestTransaction) else emptyList()
+        )
+    }
+
     LaunchedEffect(categories) {
         val pending = pendingAutoSelectCatName
         if (!pending.isNullOrBlank()) {
@@ -516,11 +523,22 @@ fun ManualLogBottomSheet(
 
                             // Field 2: Notes / Payee (*)
                             Column {
-                                Text("* Notes / Payee", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("* Notes / Payee (Mandatory)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                    if (errorField == "notes") {
+                                        Text("Required", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RoseExpense)
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(3.dp))
                                 OutlinedTextField(
                                     value = receiverVendor,
-                                    onValueChange = { receiverVendor = it },
+                                    onValueChange = {
+                                        receiverVendor = it
+                                        if (errorField == "notes") {
+                                            errorField = null
+                                            errorMsg = null
+                                        }
+                                    },
                                     placeholder = {
                                         Text(
                                             text = if (type == "expense") "e.g. Tea Stall, Zomato..." else "e.g. Salary, Friend...",
@@ -529,11 +547,13 @@ fun ManualLogBottomSheet(
                                         )
                                     },
                                     singleLine = true,
+                                    isError = errorField == "notes",
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = DarkBg,
                                         unfocusedContainerColor = DarkBg,
                                         focusedBorderColor = EmeraldPrimary,
                                         unfocusedBorderColor = BorderColor,
+                                        errorBorderColor = RoseExpense,
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
                                     ),
@@ -566,6 +586,11 @@ fun ManualLogBottomSheet(
                                         if (num == null || num <= 0) {
                                             errorField = "amount"
                                             errorMsg = "Please enter a valid amount"
+                                            return@Button
+                                        }
+                                        if (receiverVendor.trim().isBlank()) {
+                                            errorField = "notes"
+                                            errorMsg = "Notes / Payee is required"
                                             return@Button
                                         }
                                         level = 3
@@ -630,7 +655,7 @@ fun ManualLogBottomSheet(
                             }
 
                             var catDropdownExpanded by remember { mutableStateOf(false) }
-                            val activeCatName = categories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
+                            val activeCatName = sortedCategories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
 
                             Box {
                                 OutlinedButton(
@@ -653,7 +678,7 @@ fun ManualLogBottomSheet(
                                 DropdownMenu(
                                     expanded = catDropdownExpanded,
                                     onDismissRequest = { catDropdownExpanded = false },
-                                    modifier = Modifier.background(CardBg).border(1.dp, BorderColor)
+                                    modifier = Modifier.heightIn(max = 210.dp).background(CardBg).border(1.dp, BorderColor)
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("📦 Uncategorized", color = Color.White, fontSize = 11.sp) },
@@ -662,7 +687,7 @@ fun ManualLogBottomSheet(
                                             catDropdownExpanded = false
                                         }
                                     )
-                                    categories.forEach { cat ->
+                                    sortedCategories.forEach { cat ->
                                         DropdownMenuItem(
                                             text = { Text("${cat.icon} ${cat.name}", color = Color.White, fontSize = 11.sp) },
                                             onClick = {
@@ -891,20 +916,33 @@ fun ManualLogBottomSheet(
                                 )
                             }
 
-                            // Field 2: Notes / Payee
+                            // Field 2: Notes / Payee (*)
                             Column {
-                                Text("Notes / Payee", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text("* Notes / Payee (Mandatory)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                                    if (errorField == "notes") {
+                                        Text("Required", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RoseExpense)
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(3.dp))
                                 OutlinedTextField(
                                     value = receiverVendor,
-                                    onValueChange = { receiverVendor = it },
+                                    onValueChange = {
+                                        receiverVendor = it
+                                        if (errorField == "notes") {
+                                            errorField = null
+                                            errorMsg = null
+                                        }
+                                    },
                                     placeholder = { Text("e.g. Shop, Friend...", fontSize = 11.sp, color = TextMuted) },
                                     singleLine = true,
+                                    isError = errorField == "notes",
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = DarkBg,
                                         unfocusedContainerColor = DarkBg,
                                         focusedBorderColor = EmeraldPrimary,
                                         unfocusedBorderColor = BorderColor,
+                                        errorBorderColor = RoseExpense,
                                         focusedTextColor = Color.White,
                                         unfocusedTextColor = Color.White
                                     ),
@@ -931,7 +969,7 @@ fun ManualLogBottomSheet(
                             }
 
                             var catDropdownExpanded by remember { mutableStateOf(false) }
-                            val activeCatName = categories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
+                            val activeCatName = sortedCategories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
 
                             Box {
                                 OutlinedButton(
@@ -954,7 +992,7 @@ fun ManualLogBottomSheet(
                                 DropdownMenu(
                                     expanded = catDropdownExpanded,
                                     onDismissRequest = { catDropdownExpanded = false },
-                                    modifier = Modifier.background(CardBg).border(1.dp, BorderColor)
+                                    modifier = Modifier.heightIn(max = 210.dp).background(CardBg).border(1.dp, BorderColor)
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("📦 Uncategorized", color = Color.White, fontSize = 11.sp) },
@@ -963,7 +1001,7 @@ fun ManualLogBottomSheet(
                                             catDropdownExpanded = false
                                         }
                                     )
-                                    categories.forEach { cat ->
+                                    sortedCategories.forEach { cat ->
                                         DropdownMenuItem(
                                             text = { Text("${cat.icon} ${cat.name}", color = Color.White, fontSize = 11.sp) },
                                             onClick = {
@@ -999,6 +1037,12 @@ fun ManualLogBottomSheet(
                                         if (num == null || num <= 0) {
                                             errorField = "amount"
                                             errorMsg = "Please enter a valid amount"
+                                            return@Button
+                                        }
+
+                                        if (receiverVendor.trim().isBlank()) {
+                                            errorField = "notes"
+                                            errorMsg = "Notes / Payee is required"
                                             return@Button
                                         }
 

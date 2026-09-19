@@ -81,7 +81,7 @@ export default function CustomSelect({
 
       {/* Floating Options Menu */}
       {isOpen && (
-        <div className="absolute left-0 min-w-full w-max max-w-[280px] top-full mt-1.5 bg-[#131A26] border border-[#1E293B] rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-100 divide-y divide-[#1E293B]/40">
+        <div className="absolute left-0 min-w-full w-max max-w-[280px] top-full mt-1.5 bg-[#131A26] border border-[#1E293B] rounded-xl shadow-2xl z-[100] max-h-[190px] overflow-y-auto py-1 animate-in fade-in zoom-in-95 duration-100 divide-y divide-[#1E293B]/40">
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-500 text-center">No options</div>
           ) : (

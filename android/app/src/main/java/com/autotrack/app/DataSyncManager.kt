@@ -223,6 +223,32 @@ object DataSyncManager {
         return if (!raw.isNullOrBlank()) parseCategoriesJson(raw) else emptyList()
     }
 
+    fun getSortedCategoriesByRecency(
+        categories: List<com.autotrack.app.data.Category>,
+        transactions: List<com.autotrack.app.data.TransactionItem>
+    ): List<com.autotrack.app.data.Category> {
+        if (transactions.isEmpty()) return categories.sortedBy { it.name.lowercase(Locale.ROOT) }
+
+        val catLastUsedMap = mutableMapOf<String, Int>()
+        transactions.forEachIndexed { index, tx ->
+            val catId = tx.categoryId
+            if (!catId.isNullOrBlank() && !catLastUsedMap.containsKey(catId)) {
+                catLastUsedMap[catId] = index
+            }
+        }
+
+        return categories.sortedWith(Comparator { c1, c2 ->
+            val idx1 = catLastUsedMap[c1.id]
+            val idx2 = catLastUsedMap[c2.id]
+            when {
+                idx1 != null && idx2 != null -> idx1.compareTo(idx2)
+                idx1 != null -> -1
+                idx2 != null -> 1
+                else -> c1.name.lowercase(Locale.ROOT).compareTo(c2.name.lowercase(Locale.ROOT))
+            }
+        })
+    }
+
     fun addCategoryToLocalCache(category: com.autotrack.app.data.Category) {
         ensureInit()
         if (!::prefs.isInitialized) return

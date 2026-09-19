@@ -246,11 +246,14 @@ fun EditTransactionDialog(
 
                     // 3. Note Field
                     Column {
-                        Text("Note", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                        Text("* Notes / Payee (Mandatory)", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
                             value = noteText,
-                            onValueChange = { noteText = it },
+                            onValueChange = {
+                                noteText = it
+                                if (errorMessage != null) errorMessage = null
+                            },
                             placeholder = { Text("Add transaction note...", fontSize = 11.sp, color = TextMuted) },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -271,7 +274,10 @@ fun EditTransactionDialog(
                         Text("Category", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        val activeCatName = categories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
+                        val sortedCategories = remember(categories, transaction) {
+                            com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(categories, listOf(transaction))
+                        }
+                        val activeCatName = sortedCategories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
 
                         Box {
                             OutlinedButton(
@@ -295,7 +301,7 @@ fun EditTransactionDialog(
                             DropdownMenu(
                                 expanded = catDropdownExpanded,
                                 onDismissRequest = { catDropdownExpanded = false },
-                                modifier = Modifier.background(CardBg).border(1.dp, BorderColor, RoundedCornerShape(10.dp))
+                                modifier = Modifier.heightIn(max = 210.dp).background(CardBg).border(1.dp, BorderColor, RoundedCornerShape(10.dp))
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("📦 Uncategorized", color = Color.White, fontSize = 11.sp) },
@@ -304,7 +310,7 @@ fun EditTransactionDialog(
                                         catDropdownExpanded = false
                                     }
                                 )
-                                categories.forEach { cat ->
+                                sortedCategories.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text("${cat.icon} ${cat.name}", color = Color.White, fontSize = 11.sp) },
                                         onClick = {
@@ -422,6 +428,10 @@ fun EditTransactionDialog(
                                 val parsedAmount = amountText.toDoubleOrNull()
                                 if (parsedAmount == null || parsedAmount <= 0) {
                                     errorMessage = "Enter valid amount"
+                                    return@Button
+                                }
+                                if (noteText.isBlank() && vendorText.isBlank()) {
+                                    errorMessage = "Notes / Payee is required"
                                     return@Button
                                 }
                                 val formattedIso = formatIstPairToIso(selectedDate, selectedTime)
