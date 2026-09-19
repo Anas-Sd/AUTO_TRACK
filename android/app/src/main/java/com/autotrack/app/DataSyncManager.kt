@@ -394,14 +394,19 @@ object DataSyncManager {
         categoryId: String?,
         sourceApp: String,
         note: String?,
-        rawNotification: String?
+        rawNotification: String?,
+        customOccurredAt: String? = null
     ): SaveResult = withContext(Dispatchers.IO) {
         val vault = getVaultCode() ?: return@withContext SaveResult.FAILED
 
-        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        val occurredAt = if (!customOccurredAt.isNullOrBlank()) {
+            customOccurredAt
+        } else {
+            val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+            }
+            isoFormat.format(Date())
         }
-        val occurredAt = isoFormat.format(Date())
 
         val payload = JSONObject().apply {
             put("vault_code", vault)
@@ -452,9 +457,10 @@ object DataSyncManager {
         categoryId: String?,
         sourceApp: String,
         note: String?,
-        rawNotification: String?
+        rawNotification: String?,
+        customOccurredAt: String? = null
     ): Boolean {
-        val res = saveTransactionWithStatus(context, amount, type, vendor, categoryId, sourceApp, note, rawNotification)
+        val res = saveTransactionWithStatus(context, amount, type, vendor, categoryId, sourceApp, note, rawNotification, customOccurredAt)
         if (res != SaveResult.FAILED) {
             notifyDataChanged()
         }
@@ -524,7 +530,8 @@ object DataSyncManager {
         vendor: String?,
         categoryId: String?,
         sourceApp: String,
-        note: String?
+        note: String?,
+        occurredAt: String? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val url = "$SUPABASE_URL/rest/v1/transactions?id=eq.$id"
@@ -535,6 +542,7 @@ object DataSyncManager {
                 put("receiver_vendor", vendor ?: JSONObject.NULL)
                 put("source_app", sourceApp)
                 put("note", note ?: JSONObject.NULL)
+                if (!occurredAt.isNullOrBlank()) put("occurred_at", occurredAt)
             }
             val req = Request.Builder()
                 .url(url)

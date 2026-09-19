@@ -14,6 +14,8 @@ import {
   TrendingDown,
   Sparkles,
   Layers,
+  Search,
+  X,
 } from "lucide-react";
 
 export default function CategoriesTab() {
@@ -30,6 +32,13 @@ export default function CategoriesTab() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [deleteConfirmCat, setDeleteConfirmCat] = useState<{ id: string; name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) return categories;
+    const q = searchQuery.toLowerCase().trim();
+    return categories.filter((cat) => cat.name.toLowerCase().includes(q));
+  }, [categories, searchQuery]);
 
   // Compute total expense & income per category across ALL time
   const categoryStats = useMemo(() => {
@@ -88,6 +97,29 @@ export default function CategoriesTab() {
           </p>
         </div>
 
+        {/* Search Bar - Positioned between Header Title & Add Category Button */}
+        <div className="flex-1 max-w-xs mx-0 sm:mx-4">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search categories..."
+              className="w-full bg-[#131A26] border border-[#1E293B] focus:border-emerald-500 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-400 outline-none transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         <button
           onClick={handleCreate}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold transition shadow-md shadow-emerald-500/20 self-start sm:self-auto cursor-pointer"
@@ -99,19 +131,23 @@ export default function CategoriesTab() {
 
       {/* Categories Grid Container - Fixed Box with Internal Scroll */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 pb-16 md:pb-4">
-        {categories.length === 0 ? (
+        {filteredCategories.length === 0 ? (
         <div className="bg-[#131A26] border border-[#1E293B] rounded-2xl p-12 text-center">
           <Layers className="w-12 h-12 mx-auto mb-3 opacity-30 text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-300">
-            No categories available. Click &apos;Add Category&apos; above to create one.
+            {categories.length === 0
+              ? "No categories available. Click 'Add Category' above to create one."
+              : "No matching categories found."}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Create custom categories to organize your transactions and track opening balances.
+            {categories.length === 0
+              ? "Create custom categories to organize your transactions and track opening balances."
+              : "Try adjusting your search query to find the category."}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categories.map((cat) => {
+          {filteredCategories.map((cat) => {
             const stats = categoryStats.get(cat.id) || { expense: 0, income: 0, totalVolume: 0 };
             const spent = stats.expense;
             const income = stats.income;
@@ -149,10 +185,6 @@ export default function CategoriesTab() {
                         <h4 className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-emerald-400 transition">
                           {cat.name}
                         </h4>
-                        <span
-                          className="inline-block w-2.5 h-1 rounded-full mt-0.5"
-                          style={{ backgroundColor: cat.color || "#10B981" }}
-                        />
                       </div>
                     </div>
 

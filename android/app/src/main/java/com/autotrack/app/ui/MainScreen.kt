@@ -275,9 +275,9 @@ fun MainScreen(
                             refreshData()
                         }
                     },
-                    onEditTransaction = { id, amount, type, vendor, categoryId, sourceApp, note ->
+                    onEditTransaction = { id, amount, type, vendor, categoryId, sourceApp, note, occurredAt ->
                         scope.launch {
-                            val ok = DataSyncManager.updateTransaction(id, amount, type, vendor, categoryId, sourceApp, note)
+                            val ok = DataSyncManager.updateTransaction(id, amount, type, vendor, categoryId, sourceApp, note, occurredAt)
                             if (ok) {
                                 Toast.makeText(context, "Transaction updated!", Toast.LENGTH_SHORT).show()
                                 refreshData()
@@ -414,7 +414,7 @@ fun MainScreen(
             onDismissRequest = { isBottomSheetOpen = false },
             categories = categories,
             latestTransaction = transactions.firstOrNull(),
-            onSaveTransaction = { amount, type, vendor, categoryId, method, note ->
+            onSaveTransaction = { amount, type, vendor, categoryId, method, note, occurredAt ->
                 scope.launch {
                     val saveRes = DataSyncManager.saveTransactionWithStatus(
                         context = context,
@@ -424,7 +424,8 @@ fun MainScreen(
                         categoryId = categoryId,
                         sourceApp = method,
                         note = note,
-                        rawNotification = null
+                        rawNotification = null,
+                        customOccurredAt = occurredAt
                     )
                     if (saveRes == DataSyncManager.SaveResult.SAVED_ONLINE) {
                         Toast.makeText(context, "Transaction saved!", Toast.LENGTH_SHORT).show()

@@ -17,6 +17,7 @@ import {
   Smartphone,
   FileText,
   Loader2,
+  Calendar,
 } from "lucide-react";
 import { Transaction } from "@/lib/types";
 
@@ -24,6 +25,21 @@ interface ManualLogWidgetProps {
   onClose?: () => void;
   initialTransaction?: Transaction | null;
 }
+
+const toDatetimeLocal = (isoStr: string) => {
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return "";
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  } catch {
+    return "";
+  }
+};
 
 export default function ManualLogWidget({
   onClose,
@@ -45,6 +61,7 @@ export default function ManualLogWidget({
   const [categoryId, setCategoryId] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"UPI" | "Cash">("UPI");
   const [note, setNote] = useState("");
+  const [occurredAt, setOccurredAt] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState(false);
@@ -60,7 +77,14 @@ export default function ManualLogWidget({
       setCategoryId(initialTransaction.category_id || "");
       setPaymentMethod(initialTransaction.source_app === "Cash" ? "Cash" : "UPI");
       setNote(initialTransaction.note || "");
+      if (initialTransaction.occurred_at) {
+        setOccurredAt(toDatetimeLocal(initialTransaction.occurred_at));
+      } else {
+        setOccurredAt(toDatetimeLocal(new Date().toISOString()));
+      }
       setLevel(2);
+    } else {
+      setOccurredAt(toDatetimeLocal(new Date().toISOString()));
     }
   }, [initialTransaction]);
 
@@ -91,6 +115,10 @@ export default function ManualLogWidget({
     setIsSaving(true);
     setSaveError(null);
 
+    const finalOccurredAt = occurredAt
+      ? new Date(occurredAt).toISOString()
+      : initialTransaction?.occurred_at || new Date().toISOString();
+
     const payload = {
       amount: num,
       type,
@@ -98,7 +126,7 @@ export default function ManualLogWidget({
       category_id: categoryId || null,
       source_app: paymentMethod,
       note: note.trim() || null,
-      occurred_at: initialTransaction?.occurred_at || new Date().toISOString(),
+      occurred_at: finalOccurredAt,
     };
 
     let result = false;
@@ -360,6 +388,19 @@ export default function ManualLogWidget({
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Tea with friends, Grocery..."
               className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          {/* Date & Time (Editable) */}
+          <div>
+            <label className="block text-[11px] font-medium text-slate-300 mb-1 flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-emerald-400" /> Date & Time (IST)
+            </label>
+            <input
+              type="datetime-local"
+              value={occurredAt}
+              onChange={(e) => setOccurredAt(e.target.value)}
+              className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
             />
           </div>
 

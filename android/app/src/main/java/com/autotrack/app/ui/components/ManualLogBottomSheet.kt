@@ -47,6 +47,34 @@ import com.autotrack.app.data.Category
 import com.autotrack.app.data.TransactionItem
 import com.autotrack.app.ui.theme.*
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private fun getCurrentIstDateAndPair(): Pair<String, String> {
+    val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+    val sdfTime = SimpleDateFormat("HH:mm", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+    val now = Date()
+    return Pair(sdfDate.format(now), sdfTime.format(now))
+}
+
+private fun formatIstPairToIso(dateStr: String, timeStr: String): String {
+    try {
+        val combined = "$dateStr $timeStr"
+        val sdfInput = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+        val date = sdfInput.parse(combined)
+        val sdfOutput = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+        return sdfOutput.format(date ?: Date())
+    } catch (e: Exception) {
+        val sdfOutput = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+        return sdfOutput.format(Date())
+    }
+}
+
 private fun Drawable.toImageBitmap(): ImageBitmap? {
     return try {
         if (this is BitmapDrawable && this.bitmap != null) {
@@ -77,12 +105,34 @@ private data class InstalledPaymentApp(
 fun ManualLogBottomSheet(
     onDismissRequest: () -> Unit,
     categories: List<Category>,
-    onSaveTransaction: (amount: Double, type: String, vendor: String?, categoryId: String?, paymentMethod: String, note: String?) -> Unit,
+    onSaveTransaction: (amount: Double, type: String, vendor: String?, categoryId: String?, paymentMethod: String, note: String?, occurredAt: String?) -> Unit,
     onCreateCategory: (name: String, icon: String, cap: Double?) -> Unit,
     latestTransaction: TransactionItem? = null,
     onDeleteTransaction: ((id: String) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val istDefault = remember { getCurrentIstDateAndPair() }
+    var selectedDate by remember { mutableStateOf(istDefault.first) }
+    var selectedTime by remember { mutableStateOf(istDefault.second) }
+
+    fun showDatePicker() {
+        val parts = selectedDate.split("-")
+        val year = parts.getOrNull(0)?.toIntOrNull() ?: 2026
+        val month = (parts.getOrNull(1)?.toIntOrNull() ?: 1) - 1
+        val day = parts.getOrNull(2)?.toIntOrNull() ?: 1
+        DatePickerDialog(context, { _, y, m, d ->
+            selectedDate = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+        }, year, month, day).show()
+    }
+
+    fun showTimePicker() {
+        val parts = selectedTime.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 12
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        TimePickerDialog(context, { _, h, m ->
+            selectedTime = String.format(Locale.US, "%02d:%02d", h, m)
+        }, hour, minute, true).show()
+    }
 
     // Level State:
     // Level 1 = Main Action Selection (Pic 1 - Level 1)
@@ -665,6 +715,41 @@ fun ManualLogBottomSheet(
                                 }
                             }
 
+                            // Date & Time Selection (Editable for Manual Logging)
+                            Text("Date & Time (IST)", fontSize = 10.sp, color = Color.LightGray, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showDatePicker() },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
+                                    border = BorderStroke(1.dp, BorderColor),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Icon(Icons.Default.CalendarToday, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(13.dp))
+                                        Text(selectedDate, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = { showTimePicker() },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
+                                    border = BorderStroke(1.dp, BorderColor),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(13.dp))
+                                        Text(selectedTime, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+
                             // Pic 1 - Level 3 Action Buttons (Cancel | Continue | Save)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -681,18 +766,23 @@ fun ManualLogBottomSheet(
                                 Button(
                                     onClick = {
                                         val num = amount.toDoubleOrNull() ?: 0.0
+                                        val customOccurredAt = formatIstPairToIso(selectedDate, selectedTime)
                                         onSaveTransaction(
                                             num,
                                             type,
                                             receiverVendor.ifBlank { null },
                                             selectedCategoryId,
                                             paymentMethod,
-                                            receiverVendor.ifBlank { null }
+                                            receiverVendor.ifBlank { null },
+                                            customOccurredAt
                                         )
                                         level = 2
                                         amount = ""
                                         receiverVendor = ""
                                         selectedCategoryId = null
+                                        val newIst = getCurrentIstDateAndPair()
+                                        selectedDate = newIst.first
+                                        selectedTime = newIst.second
                                         Toast.makeText(context, "Logged! Add next...", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
@@ -705,13 +795,15 @@ fun ManualLogBottomSheet(
                                 Button(
                                     onClick = {
                                         val num = amount.toDoubleOrNull() ?: 0.0
+                                        val customOccurredAt = formatIstPairToIso(selectedDate, selectedTime)
                                         onSaveTransaction(
                                             num,
                                             type,
                                             receiverVendor.ifBlank { null },
                                             selectedCategoryId,
                                             paymentMethod,
-                                            receiverVendor.ifBlank { null }
+                                            receiverVendor.ifBlank { null },
+                                            customOccurredAt
                                         )
                                         onDismissRequest()
                                     },
@@ -917,7 +1009,8 @@ fun ManualLogBottomSheet(
                                             receiverVendor.ifBlank { null },
                                             selectedCategoryId,
                                             "UPI",
-                                            receiverVendor.ifBlank { null }
+                                            receiverVendor.ifBlank { null },
+                                            null
                                         )
 
                                         // Copy amount to clipboard for smooth payment paste

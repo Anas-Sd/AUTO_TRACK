@@ -52,7 +52,8 @@ fun LedgerScreen(
         vendor: String?,
         categoryId: String?,
         sourceApp: String,
-        note: String?
+        note: String?,
+        occurredAt: String?
     ) -> Unit
 ) {
     val context = LocalContext.current
@@ -678,7 +679,7 @@ fun LedgerScreen(
                                 .fillMaxWidth()
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.Top
                         ) {
                             // LEFT: Note (big) & Category (small below it)
                             Column(
@@ -694,9 +695,7 @@ fun LedgerScreen(
                                     text = mainTitle,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    color = Color.White
                                 )
 
                                 Row(
@@ -708,9 +707,7 @@ fun LedgerScreen(
                                         text = catName,
                                         fontSize = 11.sp,
                                         color = TextMuted,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
@@ -800,8 +797,8 @@ fun LedgerScreen(
             transaction = editingTransaction!!,
             categories = categories,
             onDismissRequest = { editingTransaction = null },
-            onSaveTransaction = { id, amount, type, vendor, categoryId, sourceApp, note ->
-                onEditTransaction(id, amount, type, vendor, categoryId, sourceApp, note)
+            onSaveTransaction = { id, amount, type, vendor, categoryId, sourceApp, note, occurredAt ->
+                onEditTransaction(id, amount, type, vendor, categoryId, sourceApp, note, occurredAt)
             }
         )
     }

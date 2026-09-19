@@ -27,6 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +70,19 @@ fun OverviewScreen(
 
     var customStartDate by remember { mutableStateOf<String?>(null) }
     var customEndDate by remember { mutableStateOf<String?>(null) }
+
+    // Intercept scroll gestures inside category list to prevent simultaneous background screen scrolling
+    val categoryListNestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                return Offset(0f, available.y)
+            }
+        }
+    }
 
     // Date Range Picker launcher
     fun launchCustomDateRangePicker() {
@@ -347,27 +364,39 @@ fun OverviewScreen(
 
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                                    modifier = Modifier.padding(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                                    modifier = Modifier
+                                        .width(125.dp)
+                                        .padding(horizontal = 4.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(icon, fontSize = 14.sp)
-                                        Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Text(icon, fontSize = 11.sp)
+                                        Text(
+                                            text = name,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("↗", fontSize = 12.sp, color = EmeraldPrimary, fontWeight = FontWeight.Bold)
-                                        Text("+₹${income.toInt()}", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("↗", fontSize = 10.sp, color = EmeraldPrimary, fontWeight = FontWeight.Bold)
+                                        Text("+₹${income.toInt()}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
                                     }
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text("↘", fontSize = 12.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
-                                        Text("-₹${expense.toInt()}", fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = RoseExpense)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("↘", fontSize = 10.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
+                                        Text("-₹${expense.toInt()}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = RoseExpense)
                                     }
 
-                                    HorizontalDivider(color = BorderColor, modifier = Modifier.width(90.dp).padding(vertical = 2.dp))
+                                    HorizontalDivider(color = BorderColor, modifier = Modifier.width(65.dp).padding(vertical = 1.dp))
 
                                     Text(
                                         text = "Bal: ${if (bal >= 0) "+" else "-"}₹${Math.abs(bal).toInt()}",
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         color = if (bal >= 0) EmeraldPrimary else RoseExpense
@@ -375,7 +404,7 @@ fun OverviewScreen(
                                     if (remBal != null) {
                                         Text(
                                             text = "Rem Bal: ₹${remBal.toInt()}",
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             fontFamily = FontFamily.Monospace,
                                             fontWeight = FontWeight.Medium,
                                             color = BlueAccent
@@ -399,11 +428,12 @@ fun OverviewScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Scrollable Category List below Donut (Max 5 items visible, scrollable)
+                        // Scrollable Category List below Donut (Max 5 items visible, scrollable without moving background screen)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 220.dp)
+                                .nestedScroll(categoryListNestedScrollConnection)
                         ) {
                             Column(
                                 modifier = Modifier

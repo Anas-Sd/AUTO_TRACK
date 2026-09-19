@@ -32,6 +32,7 @@ import com.autotrack.app.ui.theme.*
 
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
 
 @Composable
 fun CategoriesScreen(
@@ -45,6 +46,7 @@ fun CategoriesScreen(
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var deletingCategory by remember { mutableStateOf<Category?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
 
     val categoryStats = remember(transactions, categories) {
         val map = mutableMapOf<String, Pair<Double, Double>>() // categoryId -> (expense, income)
@@ -72,6 +74,17 @@ fun CategoriesScreen(
         }
         Triple(spent, income, count)
     }
+
+    val filteredCategories = remember(categories, searchQuery) {
+        if (searchQuery.isBlank()) {
+            categories
+        } else {
+            categories.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+        }
+    }
+
+    val showUncategorized = uncategorizedStats.third > 0 &&
+            (searchQuery.isBlank() || "uncategorized".contains(searchQuery.trim(), ignoreCase = true))
 
     Column(
         modifier = Modifier
@@ -111,10 +124,43 @@ fun CategoriesScreen(
             }
         }
 
+        // Fixed Search Bar Row
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search categories...", fontSize = 13.sp, color = TextMuted) },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = TextMuted, modifier = Modifier.size(18.dp))
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextMuted, modifier = Modifier.size(18.dp))
+                    }
+                }
+            },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = CardBg,
+                unfocusedContainerColor = CardBg,
+                disabledContainerColor = CardBg,
+                focusedBorderColor = EmeraldPrimary,
+                unfocusedBorderColor = BorderColor,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
         // 2. Independent Scrollable Category Cards Container
         if (categories.isEmpty() && uncategorizedStats.third == 0) {
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                 Text("No categories available. Tap Add to create one.", fontSize = 12.sp, color = TextMuted)
+            }
+        } else if (filteredCategories.isEmpty() && !showUncategorized) {
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                Text("No matching categories found.", fontSize = 12.sp, color = TextMuted)
             }
         } else {
             LazyColumn(
@@ -122,7 +168,7 @@ fun CategoriesScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 90.dp)
             ) {
-                if (uncategorizedStats.third > 0) {
+                if (showUncategorized) {
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -187,7 +233,7 @@ fun CategoriesScreen(
                         }
                     }
                 }
-                items(categories, key = { it.id }) { cat ->
+                items(filteredCategories, key = { it.id }) { cat ->
                     val stats = categoryStats.getOrDefault(cat.id, Pair(0.0, 0.0))
                     val spent = stats.first
                     val income = stats.second

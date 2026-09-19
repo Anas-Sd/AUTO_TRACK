@@ -30,6 +30,59 @@ import com.autotrack.app.data.Category
 import com.autotrack.app.data.TransactionItem
 import com.autotrack.app.ui.theme.*
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.AccessTime
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+private fun parseIsoToIstPair(isoStr: String): Pair<String, String> {
+    val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+    val sdfTime = SimpleDateFormat("HH:mm", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+    if (isoStr.isBlank()) {
+        val now = Date()
+        return Pair(sdfDate.format(now), sdfTime.format(now))
+    }
+    val parsers = listOf(
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") },
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") },
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") },
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+    )
+    for (parser in parsers) {
+        try {
+            val date = parser.parse(isoStr)
+            if (date != null) return Pair(sdfDate.format(date), sdfTime.format(date))
+        } catch (_: Exception) {}
+    }
+    val now = Date()
+    return Pair(sdfDate.format(now), sdfTime.format(now))
+}
+
+private fun formatIstPairToIso(dateStr: String, timeStr: String): String {
+    try {
+        val combined = "$dateStr $timeStr"
+        val sdfInput = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        }
+        val date = sdfInput.parse(combined)
+        val sdfOutput = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        }
+        return sdfOutput.format(date ?: Date())
+    } catch (e: Exception) {
+        val sdfOutput = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        }
+        return sdfOutput.format(Date())
+    }
+}
+
 @Composable
 fun EditTransactionDialog(
     transaction: TransactionItem,
@@ -42,17 +95,43 @@ fun EditTransactionDialog(
         vendor: String?,
         categoryId: String?,
         sourceApp: String,
-        note: String?
+        note: String?,
+        occurredAt: String?
     ) -> Unit
 ) {
+    val context = LocalContext.current
     var type by remember { mutableStateOf(transaction.type) }
     var amountText by remember { mutableStateOf(transaction.amount.toInt().toString()) }
     var noteText by remember { mutableStateOf(transaction.note ?: "") }
     var vendorText by remember { mutableStateOf(transaction.receiverVendor ?: "") }
     var selectedCategoryId by remember { mutableStateOf(transaction.categoryId) }
     var paymentMethod by remember { mutableStateOf(if (transaction.sourceApp.equals("Cash", ignoreCase = true)) "Cash" else "UPI") }
+
+    val initialPair = remember(transaction.occurredAt) { parseIsoToIstPair(transaction.occurredAt) }
+    var selectedDate by remember { mutableStateOf(initialPair.first) }
+    var selectedTime by remember { mutableStateOf(initialPair.second) }
+
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var catDropdownExpanded by remember { mutableStateOf(false) }
+
+    fun showDatePicker() {
+        val parts = selectedDate.split("-")
+        val year = parts.getOrNull(0)?.toIntOrNull() ?: 2026
+        val month = (parts.getOrNull(1)?.toIntOrNull() ?: 1) - 1
+        val day = parts.getOrNull(2)?.toIntOrNull() ?: 1
+        DatePickerDialog(context, { _, y, m, d ->
+            selectedDate = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+        }, year, month, day).show()
+    }
+
+    fun showTimePicker() {
+        val parts = selectedTime.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 12
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        TimePickerDialog(context, { _, h, m ->
+            selectedTime = String.format(Locale.US, "%02d:%02d", h, m)
+        }, hour, minute, true).show()
+    }
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -282,6 +361,44 @@ fun EditTransactionDialog(
                         }
                     }
 
+                    // 6. Date & Time Selection (Editable)
+                    Column {
+                        Text("Date & Time (IST)", fontSize = 10.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showDatePicker() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
+                                border = BorderStroke(1.dp, BorderColor),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(14.dp))
+                                    Text(selectedDate, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = { showTimePicker() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = DarkBg),
+                                border = BorderStroke(1.dp, BorderColor),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(14.dp))
+                                    Text(selectedTime, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+
                     if (errorMessage != null) {
                         Text(errorMessage!!, fontSize = 11.sp, color = RoseExpense, fontWeight = FontWeight.Bold)
                     }
@@ -307,6 +424,7 @@ fun EditTransactionDialog(
                                     errorMessage = "Enter valid amount"
                                     return@Button
                                 }
+                                val formattedIso = formatIstPairToIso(selectedDate, selectedTime)
                                 onSaveTransaction(
                                     transaction.id,
                                     parsedAmount,
@@ -314,7 +432,8 @@ fun EditTransactionDialog(
                                     vendorText.ifBlank { null },
                                     selectedCategoryId,
                                     paymentMethod,
-                                    noteText.ifBlank { null }
+                                    noteText.ifBlank { null },
+                                    formattedIso
                                 )
                                 onDismissRequest()
                             },

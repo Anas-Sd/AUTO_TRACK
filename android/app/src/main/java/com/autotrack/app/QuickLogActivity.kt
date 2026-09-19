@@ -29,6 +29,48 @@ class QuickLogActivity : ComponentActivity() {
                 var latestTx by remember { mutableStateOf<com.autotrack.app.data.TransactionItem?>(null) }
                 val scope = rememberCoroutineScope()
 
+                suspend fun refreshShortcutCategoriesAndData() {
+                    val vault = DataSyncManager.getVaultCode() ?: return
+                    val client = OkHttpClient()
+                    val catUrl = "${DataSyncManager.SUPABASE_URL}/rest/v1/categories?vault_code=eq.$vault&select=id,name,icon,color,monthly_cap"
+                    val catReq = Request.Builder()
+                        .url(catUrl)
+                        .addHeader("apikey", DataSyncManager.SUPABASE_SERVICE_ROLE_KEY)
+                        .addHeader("Authorization", "Bearer ${DataSyncManager.SUPABASE_SERVICE_ROLE_KEY}")
+                        .get()
+                        .build()
+
+                    val newCats = mutableListOf<Category>()
+                    try {
+                        val res = client.newCall(catReq).execute()
+                        if (res.isSuccessful) {
+                            val body = res.body?.string() ?: "[]"
+                            val array = JSONArray(body)
+                            for (i in 0 until array.length()) {
+                                val obj = array.getJSONObject(i)
+                                newCats.add(
+                                    Category(
+                                        id = obj.optString("id", ""),
+                                        name = obj.optString("name", "Category"),
+                                        icon = obj.optString("icon", "🏷️"),
+                                        color = obj.optString("color", "#10B981"),
+                                        monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else null
+                                    )
+                                )
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // offline
+                    }
+
+                    val fetchedLatest = DataSyncManager.fetchLatestTransaction()
+
+                    withContext(Dispatchers.Main) {
+                        categories = newCats
+                        latestTx = fetchedLatest
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     val vault = DataSyncManager.getVaultCode()
                     if (vault.isNullOrEmpty()) {
@@ -37,45 +79,10 @@ class QuickLogActivity : ComponentActivity() {
                         return@LaunchedEffect
                     }
 
-                    scope.launch(Dispatchers.IO) {
-                        val client = OkHttpClient()
-                        val catUrl = "${DataSyncManager.SUPABASE_URL}/rest/v1/categories?vault_code=eq.$vault&select=id,name,icon,color,monthly_cap"
-                        val catReq = Request.Builder()
-                            .url(catUrl)
-                            .addHeader("apikey", DataSyncManager.SUPABASE_SERVICE_ROLE_KEY)
-                            .addHeader("Authorization", "Bearer ${DataSyncManager.SUPABASE_SERVICE_ROLE_KEY}")
-                            .get()
-                            .build()
+                    refreshShortcutCategoriesAndData()
 
-                        val newCats = mutableListOf<Category>()
-                        try {
-                            val res = client.newCall(catReq).execute()
-                            if (res.isSuccessful) {
-                                val body = res.body?.string() ?: "[]"
-                                val array = JSONArray(body)
-                                for (i in 0 until array.length()) {
-                                    val obj = array.getJSONObject(i)
-                                    newCats.add(
-                                        Category(
-                                            id = obj.optString("id", ""),
-                                            name = obj.optString("name", "Category"),
-                                            icon = obj.optString("icon", "🏷️"),
-                                            color = obj.optString("color", "#10B981"),
-                                            monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else null
-                                        )
-                                    )
-                                }
-                            }
-                        } catch (e: Exception) {
-                            // offline
-                        }
-
-                        val fetchedLatest = DataSyncManager.fetchLatestTransaction()
-
-                        withContext(Dispatchers.Main) {
-                            categories = newCats
-                            latestTx = fetchedLatest
-                        }
+                    DataSyncManager.dataUpdateFlow.collect {
+                        refreshShortcutCategoriesAndData()
                     }
                 }
 
@@ -83,7 +90,7 @@ class QuickLogActivity : ComponentActivity() {
                     onDismissRequest = { finish() },
                     categories = categories,
                     latestTransaction = latestTx,
-                    onSaveTransaction = { amount, type, vendor, categoryId, method, note ->
+                    onSaveTransaction = { amount, type, vendor, categoryId, method, note, occurredAt ->
                         scope.launch {
                             val ok = DataSyncManager.saveTransaction(
                                 context = applicationContext,
@@ -93,7 +100,8 @@ class QuickLogActivity : ComponentActivity() {
                                 categoryId = categoryId,
                                 sourceApp = method,
                                 note = note,
-                                rawNotification = null
+                                rawNotification = null,
+                                customOccurredAt = occurredAt
                             )
                             withContext(Dispatchers.Main) {
                                 if (ok) {
@@ -107,12 +115,13 @@ class QuickLogActivity : ComponentActivity() {
                     },
                     onCreateCategory = { name, icon, cap ->
                         scope.launch {
-                            val ok = DataSyncManager.createCategory(name, icon, "#10B981", cap)
+                            val newId = DataSyncManager.createCategoryAndGetId(name, icon, "#10B981", cap)
                             withContext(Dispatchers.Main) {
-                                if (ok) {
+                                if (newId != null) {
                                     Toast.makeText(applicationContext, "Category created successfully!", Toast.LENGTH_SHORT).show()
                                 }
                             }
+                            refreshShortcutCategoriesAndData()
                             DataSyncManager.notifyDataChanged()
                         }
                     },
