@@ -47,6 +47,26 @@ async function sendTypingAction(chatId: number | string) {
   }
 }
 
+async function sendTelegramDocument(chatId: number | string, content: string, fileName: string, caption: string) {
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`;
+    const formData = new FormData();
+    formData.append("chat_id", String(chatId));
+    formData.append("caption", caption);
+    formData.append("parse_mode", "Markdown");
+
+    const fileBlob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    formData.append("document", fileBlob, fileName);
+
+    await fetch(url, {
+      method: "POST",
+      body: formData,
+    });
+  } catch (err) {
+    console.error("Failed to send Telegram document:", err);
+  }
+}
+
 // Function tools for Gemini 2.5 Function Calling
 const GEMINI_TOOLS = [
   {
@@ -157,6 +177,18 @@ const GEMINI_TOOLS = [
           type: "OBJECT",
           properties: {
             reason: { type: "STRING", description: "Context if specified" },
+          },
+        },
+      },
+      {
+        name: "export_transactions_file",
+        description: "Generate and send a downloadable CSV file attachment of transactions filtered by date, timeframe, or category.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            timeframe: { type: "STRING", description: "e.g. today, yesterday, this_week, this_month, last_month, September 2026, all" },
+            category_name: { type: "STRING", description: "Filter by specific category if requested" },
+            sort_by: { type: "STRING", enum: ["date_desc", "date_asc", "amount_desc"], description: "Sorting order" },
           },
         },
       },
@@ -719,6 +751,71 @@ CRITICAL RULES:
             `• Category: ${catName}`
         );
       }
+      return NextResponse.json({ status: "ok" });
+    }
+
+    // 7. EXPORT TRANSACTIONS FILE (CSV Download)
+    if (name === "export_transactions_file") {
+      const { timeframe, category_name } = args;
+
+      const { data: allTx, error: txErr } = await supabase
+        .from("transactions")
+        .select("*, categories(name)")
+        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .order("occurred_at", { ascending: false });
+
+      if (txErr || !allTx || allTx.length === 0) {
+        await sendTelegramMessage(chatId, `⚠️ No transactions found to export.`);
+        return NextResponse.json({ status: "ok" });
+      }
+
+      let filtered = allTx;
+      const now = new Date();
+
+      if (timeframe === "today") {
+        const todayStr = now.toISOString().substring(0, 10);
+        filtered = allTx.filter((t) => t.occurred_at?.substring(0, 10) === todayStr);
+      } else if (timeframe === "this_month") {
+        filtered = allTx.filter((t) => {
+          const d = new Date(t.occurred_at);
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        });
+      }
+
+      if (category_name) {
+        const qCat = category_name.toLowerCase();
+        filtered = filtered.filter((t) => t.categories?.name?.toLowerCase().includes(qCat));
+      }
+
+      if (filtered.length === 0) {
+        await sendTelegramMessage(chatId, `⚠️ No transactions match your requested filter.`);
+        return NextResponse.json({ status: "ok" });
+      }
+
+      // Generate clean CSV content
+      const csvHeader = `"ID","Date","Time","Type","Amount (INR)","Note / Vendor","Category","Source App"\n`;
+      const csvRows = filtered
+        .map((t) => {
+          const d = new Date(t.occurred_at);
+          const dateStr = d.toISOString().substring(0, 10);
+          const timeStr = d.toTimeString().substring(0, 8);
+          const noteStr = (t.note || t.receiver_vendor || "").replace(/"/g, '""');
+          const catStr = (t.categories?.name || "Uncategorized").replace(/"/g, '""');
+          return `"${t.id}","${dateStr}","${timeStr}","${t.type}","${t.amount}","${noteStr}","${catStr}","${t.source_app || "AutoTrack"}"`;
+        })
+        .join("\n");
+
+      const csvContent = csvHeader + csvRows;
+      const tfLabel = timeframe ? timeframe.replace("_", " ") : "export";
+      const fileName = `AutoTrack_Transactions_${tfLabel}_${now.toISOString().substring(0, 10)}.csv`;
+
+      await sendTelegramDocument(
+        chatId,
+        csvContent,
+        fileName,
+        `📄 *Here is your requested transaction export file!* (${filtered.length} transactions)`
+      );
+
       return NextResponse.json({ status: "ok" });
     }
 
