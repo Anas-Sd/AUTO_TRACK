@@ -55,6 +55,43 @@ export default function LedgerTab() {
   const [customEnd, setCustomEnd] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
 
+  const hasActiveFilter = useMemo(() => {
+    return (
+      searchQuery.trim() !== "" ||
+      selectedCategory !== "all" ||
+      selectedType !== "all" ||
+      selectedSource !== "all" ||
+      selectedReceiver !== "all" ||
+      selectedSender !== "all" ||
+      timeframe !== "all" ||
+      customStart !== "" ||
+      customEnd !== ""
+    );
+  }, [
+    searchQuery,
+    selectedCategory,
+    selectedType,
+    selectedSource,
+    selectedReceiver,
+    selectedSender,
+    timeframe,
+    customStart,
+    customEnd,
+  ]);
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSelectedType("all");
+    setSelectedSource("all");
+    setSelectedReceiver("all");
+    setSelectedSender("all");
+    setTimeframe("all");
+    setCustomStart("");
+    setCustomEnd("");
+    setIsFilterOpen(false);
+  };
+
   // Distinct sources list
   const availableSources = useMemo(() => {
     const s = new Set<string>();
@@ -325,6 +362,17 @@ export default function LedgerTab() {
               { value: "lowest", label: "Sort: Amount Low-High" },
             ]}
           />
+
+          {/* Reset Filters Icon Button (Shown only when active filters exist) */}
+          {hasActiveFilter && (
+            <button
+              onClick={handleResetFilters}
+              title="Reset active filters"
+              className="flex items-center justify-center p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* CSV Export Button */}
           <button
