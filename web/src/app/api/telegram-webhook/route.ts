@@ -442,8 +442,8 @@ CRITICAL MANDATORY RULES:
       await saveChatMemory(supabase, chatHistory);
     }
 
-    // Call Gemini API via REST with candidate models (gemini-3.5-flash has active quota and superior reasoning)
-    const candidateModels = ["gemini-3.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
+    // Call Gemini API via REST with candidate models (gemini-3-flash-preview has high active quota and fast execution)
+    const candidateModels = ["gemini-3-flash-preview", "gemini-3.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
     let geminiRes: Response | null = null;
     let lastErrorText = "";
 
