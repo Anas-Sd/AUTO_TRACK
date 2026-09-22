@@ -490,8 +490,13 @@ CRITICAL MANDATORY RULES:
     if (!geminiRes || !geminiRes.ok) {
       console.error("All Gemini API candidate models failed:", lastErrorText);
       let errMsg = `⚠️ AI Service temporarily unavailable. Please try again.`;
-      if (lastErrorText.includes("API key not valid")) {
-        errMsg = `⚠️ Gemini API Key invalid. Please verify your GEMINI_API_KEY environment variable in Vercel.`;
+      if (
+        lastErrorText.includes("API key not valid") ||
+        lastErrorText.includes("UNAUTHENTICATED") ||
+        lastErrorText.includes("invalid authentication") ||
+        lastErrorText.includes("401")
+      ) {
+        errMsg = `⚠️ Gemini API Key invalid or expired. Please update your GEMINI_API_KEY in Vercel with a valid key from Google AI Studio.`;
       } else if (lastErrorText.includes("RESOURCE_EXHAUSTED") || lastErrorText.includes("quota") || lastErrorText.includes("429")) {
         errMsg = `⚠️ AI Assistant is momentarily busy. Please try again in a few seconds.`;
       }
