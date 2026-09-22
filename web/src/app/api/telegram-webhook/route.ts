@@ -437,6 +437,20 @@ CRITICAL MANDATORY RULES:
 
     const { name, args } = functionCall;
 
+    function getCategoryEmoji(name: string): string {
+      const q = name.toLowerCase().trim();
+      if (/college|school|education|study|book|exam|fees/i.test(q)) return "🎓";
+      if (/car|vehicle|petrol|diesel|fuel|travel|cab|auto|ride/i.test(q)) return "🚗";
+      if (/food|restaurant|dining|snacks|hotel|pizza|burger|tea|coffee/i.test(q)) return "🍕";
+      if (/checking|bank|salary|income|money|cash|deposit|savings/i.test(q)) return "💰";
+      if (/shopping|clothes|fashion|mall|store|buy/i.test(q)) return "🛒";
+      if (/home|rent|flat|house|electricity|utility|bill/i.test(q)) return "🏠";
+      if (/health|medicine|doctor|hospital|pharma/i.test(q)) return "💊";
+      if (/movie|entertainment|game|play|fun|sports/i.test(q)) return "🎬";
+      if (/donation|charity|beggar|gift/i.test(q)) return "🎁";
+      return "🏷️";
+    }
+
     // --- HELPER FUNCTION: Find or Auto-Create Category ---
     async function getOrCreateCategory(categoryName?: string): Promise<{ id: string | null; name: string }> {
       if (!categoryName) return { id: null, name: "Uncategorized" };
@@ -450,13 +464,13 @@ CRITICAL MANDATORY RULES:
         return { id: existing.id, name: existing.name };
       }
 
-      // Auto-create missing category in Supabase
+      // Auto-create missing category in Supabase with smart emoji icon
       const { data: newCat, error } = await supabase
         .from("categories")
         .insert({
           vault_code: DEFAULT_VAULT_CODE,
           name: categoryName.trim(),
-          icon: "Category",
+          icon: getCategoryEmoji(categoryName),
           color: "#3B82F6",
         })
         .select()
@@ -660,7 +674,7 @@ CRITICAL MANDATORY RULES:
             .insert({
               vault_code: DEFAULT_VAULT_CODE,
               name: item.name.trim(),
-              icon: "Category",
+              icon: getCategoryEmoji(item.name),
               color: "#3B82F6",
               opening_balance: item.opening_balance || 0,
               monthly_cap: item.monthly_cap || null,
@@ -697,7 +711,7 @@ CRITICAL MANDATORY RULES:
               .insert({
                 vault_code: DEFAULT_VAULT_CODE,
                 name: (item.new_name || item.name).trim(),
-                icon: "Category",
+                icon: getCategoryEmoji(item.name),
                 color: "#3B82F6",
                 opening_balance: item.opening_balance || 0,
                 monthly_cap: item.monthly_cap || null,

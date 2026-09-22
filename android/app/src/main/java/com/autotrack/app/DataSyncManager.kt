@@ -203,11 +203,15 @@ object DataSyncManager {
             val array = JSONArray(jsonStr)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
+                val catName = obj.optString("name", "Category")
+                if (catName == "_BOT_MEMORY_") continue
+                val rawIcon = obj.optString("icon", "🏷️")
+                val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4) "🏷️" else rawIcon
                 list.add(
                     com.autotrack.app.data.Category(
                         id = obj.optString("id", ""),
-                        name = obj.optString("name", "Category"),
-                        icon = obj.optString("icon", "🏷️"),
+                        name = catName,
+                        icon = cleanIcon,
                         color = obj.optString("color", "#10B981"),
                         monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else null
                     )

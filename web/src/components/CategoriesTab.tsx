@@ -34,15 +34,19 @@ export default function CategoriesTab() {
   const [deleteConfirmCat, setDeleteConfirmCat] = useState<{ id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const visibleCategories = useMemo(() => {
+    return categories.filter((cat) => cat.name !== "_BOT_MEMORY_");
+  }, [categories]);
+
   const sortedCategories = useMemo(() => {
-    if (transactions.length === 0) return [...categories].sort((a, b) => a.name.localeCompare(b.name));
+    if (transactions.length === 0) return [...visibleCategories].sort((a, b) => a.name.localeCompare(b.name));
     const catLastUsedMap = new Map<string, number>();
     transactions.forEach((t, idx) => {
       if (t.category_id && !catLastUsedMap.has(t.category_id)) {
         catLastUsedMap.set(t.category_id, idx);
       }
     });
-    return [...categories].sort((a, b) => {
+    return [...visibleCategories].sort((a, b) => {
       const idxA = catLastUsedMap.get(a.id);
       const idxB = catLastUsedMap.get(b.id);
       if (idxA !== undefined && idxB !== undefined) return idxA - idxB;
@@ -50,7 +54,7 @@ export default function CategoriesTab() {
       if (idxB !== undefined) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [categories, transactions]);
+  }, [visibleCategories, transactions]);
 
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) return sortedCategories;
@@ -197,7 +201,7 @@ export default function CategoriesTab() {
                           borderColor: `${cat.color || "#10B981"}40`,
                         }}
                       >
-                        {cat.icon || "🏷️"}
+                        {!cat.icon || cat.icon === "Category" || cat.icon.length > 4 ? "🏷️" : cat.icon}
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-emerald-400 transition">
