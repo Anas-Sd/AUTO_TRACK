@@ -180,28 +180,45 @@ INSTRUCTIONS:
    - Choose 'query_summary'.
 5. Always select a function call tool matching user intent.`;
 
-    // Call Gemini Flash API via REST
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: userMessage }],
-          },
-        ],
-        systemInstruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        tools: GEMINI_TOOLS,
-      }),
-    });
+    // Call Gemini API via REST with fallback models (gemini-2.5-flash, gemini-flash-latest, etc.)
+    const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+    let geminiRes: Response | null = null;
+    let lastErrorText = "";
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error("Gemini API Error:", errText);
+    for (const model of candidateModels) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+        const res = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: userMessage }],
+              },
+            ],
+            systemInstruction: {
+              parts: [{ text: systemPrompt }],
+            },
+            tools: GEMINI_TOOLS,
+          }),
+        });
+
+        if (res.ok) {
+          geminiRes = res;
+          break;
+        } else {
+          lastErrorText = await res.text();
+          console.warn(`Gemini model ${model} returned error:`, lastErrorText);
+        }
+      } catch (e: any) {
+        lastErrorText = e.message || String(e);
+      }
+    }
+
+    if (!geminiRes || !geminiRes.ok) {
+      console.error("All Gemini API candidate models failed:", lastErrorText);
       await sendTelegramMessage(chatId, `⚠️ AI Service temporarily unavailable. Please try again.`);
       return NextResponse.json({ error: "Gemini call failed" }, { status: 500 });
     }
