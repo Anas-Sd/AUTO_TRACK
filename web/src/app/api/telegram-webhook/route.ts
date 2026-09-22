@@ -159,7 +159,16 @@ const GEMINI_TOOLS = [
           properties: {
             query_type: {
               type: "STRING",
-              enum: ["latest_transaction", "summary", "category_breakdown", "top_spending", "filtered_range"],
+              enum: [
+                "latest_transaction",
+                "summary",
+                "category_breakdown",
+                "top_spending",
+                "filtered_range",
+                "list_categories",
+                "list_transactions",
+                "transaction_count",
+              ],
               description: "Type of data query",
             },
             timeframe: { type: "STRING", description: "e.g. today, yesterday, this_week, this_month, last_month, September 2026, all" },
@@ -582,20 +591,43 @@ CRITICAL RULES:
             const obStr = item.opening_balance ? ` (Opening Balance: ₹${item.opening_balance.toLocaleString("en-IN")})` : "";
             results.push(`• *"${created.name}"*${obStr}`);
           }
-        } else if (action === "update" && targetCat) {
-          const updates: any = {};
-          if (item.new_name) updates.name = item.new_name;
-          if (item.opening_balance !== undefined) updates.opening_balance = item.opening_balance;
-          if (item.monthly_cap !== undefined) updates.monthly_cap = item.monthly_cap;
+        } else if (action === "update") {
+          if (targetCat) {
+            const updates: any = {};
+            if (item.new_name) updates.name = item.new_name.trim();
+            if (item.opening_balance !== undefined) updates.opening_balance = item.opening_balance;
+            if (item.monthly_cap !== undefined) updates.monthly_cap = item.monthly_cap;
 
-          const { error } = await supabase
-            .from("categories")
-            .update(updates)
-            .eq("id", targetCat.id)
-            .eq("vault_code", DEFAULT_VAULT_CODE);
+            const { error } = await supabase
+              .from("categories")
+              .update(updates)
+              .eq("id", targetCat.id)
+              .eq("vault_code", DEFAULT_VAULT_CODE);
 
-          if (!error) {
-            results.push(`• *"${targetCat.name}"* updated`);
+            if (!error) {
+              const obStr = item.opening_balance !== undefined ? ` (Opening Balance: ₹${item.opening_balance.toLocaleString("en-IN")})` : "";
+              const catDisplayName = item.new_name ? `"${targetCat.name}" renamed to "${item.new_name}"` : `"${targetCat.name}"`;
+              results.push(`• *${catDisplayName}*${obStr} updated`);
+            }
+          } else {
+            // Auto-create category if update target wasn't found
+            const { data: created, error } = await supabase
+              .from("categories")
+              .insert({
+                vault_code: DEFAULT_VAULT_CODE,
+                name: (item.new_name || item.name).trim(),
+                icon: "Category",
+                color: "#3B82F6",
+                opening_balance: item.opening_balance || 0,
+                monthly_cap: item.monthly_cap || null,
+              })
+              .select()
+              .single();
+
+            if (!error && created) {
+              const obStr = item.opening_balance ? ` (Opening Balance: ₹${item.opening_balance.toLocaleString("en-IN")})` : "";
+              results.push(`• *"${created.name}"* created${obStr}`);
+            }
           }
         } else if (action === "delete" && targetCat) {
           // Unlink transactions
@@ -654,6 +686,28 @@ CRITICAL RULES:
         return NextResponse.json({ status: "ok" });
       }
 
+      // Handle "list_categories"
+      if (query_type === "list_categories") {
+        const catList = categories || [];
+        if (catList.length === 0) {
+          await sendTelegramMessage(chatId, `🏷️ No categories created yet in Vault "${DEFAULT_VAULT_CODE}".`);
+        } else {
+          const rows = catList
+            .map(
+              (c) =>
+                `• *${c.name}*` +
+                (c.opening_balance ? ` (Opening Balance: ₹${c.opening_balance.toLocaleString("en-IN")})` : "") +
+                (c.monthly_cap ? ` [Cap: ₹${c.monthly_cap.toLocaleString("en-IN")}]` : "")
+            )
+            .join("\n");
+          await sendTelegramMessage(
+            chatId,
+            `🏷️ *Categories in Vault "${DEFAULT_VAULT_CODE}" (${catList.length}):*\n\n` + rows
+          );
+        }
+        return NextResponse.json({ status: "ok" });
+      }
+
       // Fetch all transactions for general overview queries
       const { data: allTx, error: txErr } = await supabase
         .from("transactions")
@@ -670,8 +724,12 @@ CRITICAL RULES:
       const now = new Date();
 
       if (category_name) {
-        const qCat = category_name.toLowerCase();
-        filtered = filtered.filter((t) => t.categories?.name?.toLowerCase().includes(qCat));
+        const qCat = category_name.toLowerCase().trim();
+        filtered = filtered.filter(
+          (t) =>
+            t.categories?.name?.toLowerCase().trim() === qCat ||
+            t.categories?.name?.toLowerCase().includes(qCat)
+        );
       }
 
       if (timeframe === "today") {
@@ -682,6 +740,42 @@ CRITICAL RULES:
           const d = new Date(t.occurred_at);
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         });
+      }
+
+      // Handle "transaction_count"
+      if (query_type === "transaction_count") {
+        const catLabel = category_name ? ` under category "*${category_name}*"` : "";
+        const tfLabel = timeframe ? ` (${timeframe.replace("_", " ")})` : "";
+        let totalAmt = 0;
+        filtered.forEach((t) => (totalAmt += Number(t.amount || 0)));
+        await sendTelegramMessage(
+          chatId,
+          `🔢 *Transaction Count Query*\n\n` +
+            `Found *${filtered.length}* transaction(s)${catLabel}${tfLabel}.\n` +
+            `💸 *Total Amount:* ₹${totalAmt.toLocaleString("en-IN")}`
+        );
+        return NextResponse.json({ status: "ok" });
+      }
+
+      // Handle "list_transactions"
+      if (query_type === "list_transactions") {
+        const catLabel = category_name ? ` under "*${category_name}*"` : "";
+        const tfLabel = timeframe ? ` (${timeframe.replace("_", " ")})` : "";
+        if (filtered.length === 0) {
+          await sendTelegramMessage(chatId, `ℹ️ No transactions found matching your request.`);
+        } else {
+          const rows = filtered
+            .map((t, idx) => {
+              const symbol = t.type === "income" ? "📈" : "💸";
+              return `[${idx + 1}] ${symbol} *₹${t.amount}* ("${t.note || t.receiver_vendor || "N/A"}") → *${t.categories?.name || "Uncategorized"}* (${t.occurred_at?.substring(0, 10)})`;
+            })
+            .join("\n");
+          await sendTelegramMessage(
+            chatId,
+            `📋 *Transactions List (${filtered.length})${catLabel}${tfLabel}:*\n\n` + rows
+          );
+        }
+        return NextResponse.json({ status: "ok" });
       }
 
       let totalIncome = 0;
