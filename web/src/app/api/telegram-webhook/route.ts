@@ -151,6 +151,16 @@ const GEMINI_TOOLS = [
         },
       },
       {
+        name: "undo_last_action",
+        description: "Undo or revert the most recent transaction log or action performed.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            reason: { type: "STRING", description: "Context if specified" },
+          },
+        },
+      },
+      {
         name: "ask_user_clarification",
         description: "Ask the user a clarifying question when crucial parameters are missing or ambiguous.",
         parameters: {
@@ -672,6 +682,43 @@ CRITICAL RULES:
           `🏷️ *Category Breakdown:*\n${catBreakdown || "  ▫️ No expenses recorded."}`
       );
 
+      return NextResponse.json({ status: "ok" });
+    }
+
+    // 6. UNDO LAST ACTION
+    if (name === "undo_last_action") {
+      const { data: lastTx } = await supabase
+        .from("transactions")
+        .select("*, categories(name)")
+        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!lastTx) {
+        await sendTelegramMessage(chatId, `⚠️ No recent transaction found to undo.`);
+        return NextResponse.json({ status: "ok" });
+      }
+
+      const { error: delErr } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", lastTx.id)
+        .eq("vault_code", DEFAULT_VAULT_CODE);
+
+      if (delErr) {
+        await sendTelegramMessage(chatId, `❌ Failed to undo last transaction: ${delErr.message}`);
+      } else {
+        const catName = lastTx.categories?.name || "Uncategorized";
+        await sendTelegramMessage(
+          chatId,
+          `↩️ *Undo Successful!*\n\n` +
+            `Deleted last logged transaction:\n` +
+            `• Amount: ₹${lastTx.amount}\n` +
+            `• Note: "${lastTx.note || lastTx.receiver_vendor || "N/A"}"\n` +
+            `• Category: ${catName}`
+        );
+      }
       return NextResponse.json({ status: "ok" });
     }
 
