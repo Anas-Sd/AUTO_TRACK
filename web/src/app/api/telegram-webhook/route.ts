@@ -116,14 +116,19 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userMessage = message.text.trim();
 
-    // Handle /start or greeting commands directly
-    if (userMessage.startsWith("/start")) {
+    // Handle /start, greetings, or help commands directly
+    const lowerUserMsg = userMessage.toLowerCase().trim();
+    if (
+      userMessage.startsWith("/start") ||
+      userMessage.startsWith("/help") ||
+      ["hi", "hello", "hey", "hlo", "help"].includes(lowerUserMsg)
+    ) {
       await sendTelegramMessage(
         chatId,
-        `👋 *Welcome to AutoTrack AI Bot!*\n\nYou can talk to me naturally in plain English. Here are some examples:\n\n` +
+        `👋 *Hello! I'm your AutoTrack AI Assistant.*\n\nYou can talk to me naturally in plain English to manage your expense ledger. Here are some things you can try:\n\n` +
           `• *"50 rs for ice cream under regular expenses"*\n` +
           `• *"Add 50000 as salary credited"*\n` +
-          `• *"Add 50 rs as donation"* (I will ask for category if missing!)\n` +
+          `• *"Add 50 rs as donation"* (I'll ask for category if missing!)\n` +
           `• *"Delete 3rd log in ledger"* or *"Delete sports category"*\n` +
           `• *"Give me monthly expenses of September"*`
       );
