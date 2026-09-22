@@ -118,11 +118,11 @@ export async function POST(req: Request) {
 
     // Handle /start, greetings, or help commands directly
     const lowerUserMsg = userMessage.toLowerCase().trim();
-    if (
-      userMessage.startsWith("/start") ||
-      userMessage.startsWith("/help") ||
-      ["hi", "hello", "hey", "hlo", "help"].includes(lowerUserMsg)
-    ) {
+    const isGreeting =
+      userMessage.startsWith("/") ||
+      /^(hi+|hello+|hey+|hlo+|help|good\s*morning|good\s*evening|good\s*afternoon)/i.test(lowerUserMsg);
+
+    if (isGreeting) {
       await sendTelegramMessage(
         chatId,
         `👋 *Hello! I'm your AutoTrack AI Assistant.*\n\nYou can talk to me naturally in plain English to manage your expense ledger. Here are some things you can try:\n\n` +
@@ -224,7 +224,11 @@ INSTRUCTIONS:
 
     if (!geminiRes || !geminiRes.ok) {
       console.error("All Gemini API candidate models failed:", lastErrorText);
-      await sendTelegramMessage(chatId, `⚠️ AI Service temporarily unavailable. Please try again.`);
+      let errMsg = `⚠️ AI Service temporarily unavailable. Please try again.`;
+      if (lastErrorText.includes("API key not valid")) {
+        errMsg = `⚠️ Gemini API Key invalid. Please verify your GEMINI_API_KEY environment variable in Vercel (make sure it starts with 'AQ.').`;
+      }
+      await sendTelegramMessage(chatId, errMsg);
       return NextResponse.json({ error: "Gemini call failed" }, { status: 500 });
     }
 
