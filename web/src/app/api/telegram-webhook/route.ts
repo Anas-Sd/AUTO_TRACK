@@ -908,11 +908,26 @@ CRITICAL MANDATORY RULES:
 
       if (category_name) {
         const qCat = category_name.toLowerCase().trim();
-        filtered = filtered.filter(
-          (t) =>
-            t.categories?.name?.toLowerCase().trim() === qCat ||
-            t.categories?.name?.toLowerCase().includes(qCat)
-        );
+        const isUncategorizedQuery =
+          qCat === "uncategorized" ||
+          qCat === "none" ||
+          qCat === "un-categorized" ||
+          qCat.includes("uncategorized");
+
+        if (isUncategorizedQuery) {
+          filtered = filtered.filter(
+            (t) =>
+              !t.category_id ||
+              !t.categories?.name ||
+              t.categories?.name?.toLowerCase().trim() === "uncategorized"
+          );
+        } else {
+          filtered = filtered.filter(
+            (t) =>
+              t.categories?.name?.toLowerCase().trim() === qCat ||
+              t.categories?.name?.toLowerCase().includes(qCat)
+          );
+        }
       }
 
       if (timeframe === "today") {
@@ -1056,8 +1071,23 @@ CRITICAL MANDATORY RULES:
       }
 
       if (category_name) {
-        const qCat = category_name.toLowerCase();
-        filtered = filtered.filter((t) => t.categories?.name?.toLowerCase().includes(qCat));
+        const qCat = category_name.toLowerCase().trim();
+        const isUncategorizedQuery =
+          qCat === "uncategorized" ||
+          qCat === "none" ||
+          qCat === "un-categorized" ||
+          qCat.includes("uncategorized");
+
+        if (isUncategorizedQuery) {
+          filtered = filtered.filter(
+            (t) =>
+              !t.category_id ||
+              !t.categories?.name ||
+              t.categories?.name?.toLowerCase().trim() === "uncategorized"
+          );
+        } else {
+          filtered = filtered.filter((t) => t.categories?.name?.toLowerCase().includes(qCat));
+        }
       }
 
       if (filtered.length === 0) {
