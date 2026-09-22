@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const maxDuration = 60;
+
 // Credentials read from Environment Variables
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
@@ -442,10 +444,18 @@ CRITICAL MANDATORY RULES:
       await saveChatMemory(supabase, chatHistory);
     }
 
-    // Call Gemini API via REST with candidate models (gemini-3-flash-preview has high active quota and fast execution)
-    const candidateModels = ["gemini-3-flash-preview", "gemini-3.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash"];
+    // Call Gemini API via REST with candidate models
+    // gemini-3.6-flash is Google's recommended modern flash model with high quota and reliable tool calling
+    const candidateModels = [
+      "gemini-3.6-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemini-3-flash-preview",
+      "gemini-3.5-flash",
+    ];
     let geminiRes: Response | null = null;
     let lastErrorText = "";
+    const errorsList: string[] = [];
 
     for (const model of candidateModels) {
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -461,7 +471,7 @@ CRITICAL MANDATORY RULES:
               },
               tools: GEMINI_TOOLS,
             }),
-            signal: AbortSignal.timeout(8000),
+            signal: AbortSignal.timeout(20000),
           });
 
           if (res.ok) {
@@ -469,11 +479,12 @@ CRITICAL MANDATORY RULES:
             break;
           } else {
             lastErrorText = await res.text();
+            errorsList.push(`[${model} attempt ${attempt + 1}: ${res.status}] ${lastErrorText}`);
             console.warn(`Gemini model ${model} (attempt ${attempt + 1}) returned error:`, lastErrorText);
-            // If rate limited or service busy, wait 1.2s and retry
+            // If rate limited or service busy (503/429), wait 1.5s and retry once
             if (res.status === 429 || res.status === 503) {
               if (attempt === 0) {
-                await new Promise((r) => setTimeout(r, 1200));
+                await new Promise((r) => setTimeout(r, 1500));
                 continue;
               }
             }
@@ -481,6 +492,7 @@ CRITICAL MANDATORY RULES:
           }
         } catch (e: any) {
           lastErrorText = e.message || String(e);
+          errorsList.push(`[${model} catch] ${lastErrorText}`);
           break;
         }
       }
@@ -488,17 +500,20 @@ CRITICAL MANDATORY RULES:
     }
 
     if (!geminiRes || !geminiRes.ok) {
-      console.error("All Gemini API candidate models failed:", lastErrorText);
-      let errMsg = `⚠️ AI Service temporarily unavailable. Please try again.`;
+      const allErrors = errorsList.join(" | ");
+      console.error("All Gemini API candidate models failed:", allErrors);
+      let errMsg = `⚠️ AI Service temporarily unavailable. Please try again in a few moments.`;
       if (
-        lastErrorText.includes("API key not valid") ||
-        lastErrorText.includes("UNAUTHENTICATED") ||
-        lastErrorText.includes("invalid authentication") ||
-        lastErrorText.includes("401")
+        allErrors.includes("API key not valid") ||
+        allErrors.includes("UNAUTHENTICATED") ||
+        allErrors.includes("invalid authentication") ||
+        allErrors.includes("401")
       ) {
         errMsg = `⚠️ Gemini API Key invalid or expired. Please update your GEMINI_API_KEY in Vercel with a valid key from Google AI Studio.`;
-      } else if (lastErrorText.includes("RESOURCE_EXHAUSTED") || lastErrorText.includes("quota") || lastErrorText.includes("429")) {
-        errMsg = `⚠️ AI Assistant is momentarily busy. Please try again in a few seconds.`;
+      } else if (allErrors.includes("RESOURCE_EXHAUSTED") || allErrors.includes("quota") || allErrors.includes("429")) {
+        errMsg = `⚠️ AI Assistant daily free quota reached on Google AI Studio. Please try again shortly or create a new key in Google AI Studio.`;
+      } else if (allErrors.includes("503") || allErrors.includes("UNAVAILABLE")) {
+        errMsg = `⚠️ AI Service is momentarily busy. Please try sending your message again in a few seconds.`;
       }
       await sendTelegramMessage(chatId, errMsg);
       return NextResponse.json({ error: "Gemini call failed" }, { status: 500 });
