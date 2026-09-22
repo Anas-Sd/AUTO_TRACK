@@ -67,6 +67,46 @@ async function sendTelegramDocument(chatId: number | string, content: string, fi
   }
 }
 
+interface ChatTurn {
+  role: "user" | "model";
+  parts: Array<{ text: string }>;
+}
+
+async function getChatMemory(supabase: any): Promise<ChatTurn[]> {
+  try {
+    const { data } = await supabase
+      .from("categories")
+      .select("icon")
+      .eq("vault_code", DEFAULT_VAULT_CODE)
+      .eq("name", "_BOT_MEMORY_")
+      .maybeSingle();
+
+    if (data && data.icon) {
+      const parsed = JSON.parse(data.icon);
+      if (Array.isArray(parsed)) return parsed as ChatTurn[];
+    }
+  } catch (e) {
+    // ignore memory read error
+  }
+  return [];
+}
+
+async function saveChatMemory(supabase: any, memory: ChatTurn[]) {
+  try {
+    const recent = memory.slice(-10);
+    await supabase.from("categories").upsert(
+      {
+        vault_code: DEFAULT_VAULT_CODE,
+        name: "_BOT_MEMORY_",
+        icon: JSON.stringify(recent),
+      },
+      { onConflict: "vault_code,name" }
+    );
+  } catch (e) {
+    // ignore memory save error
+  }
+}
+
 // Function tools for Gemini 2.5 Function Calling
 const GEMINI_TOOLS = [
   {
@@ -87,9 +127,10 @@ const GEMINI_TOOLS = [
                   note: { type: "STRING", description: "Note, description, or vendor (e.g. petrol, ice cream, salary)" },
                   category_name: { type: "STRING", description: "Category name. If category doesn't exist, it will be created." },
                   type: { type: "STRING", enum: ["expense", "income"], description: "Transaction type" },
+                  payment_method: { type: "STRING", description: "UPI (default) or Cash" },
                   occurred_at: { type: "STRING", description: "ISO date string or relative date if specified" },
                 },
-                required: ["amount", "type"],
+                required: ["amount", "note", "type"],
               },
             },
           },
@@ -203,7 +244,7 @@ const GEMINI_TOOLS = [
       },
       {
         name: "ask_user_clarification",
-        description: "Ask the user a clarifying question when crucial parameters are missing or ambiguous.",
+        description: "Ask the user a clarifying question when crucial parameters like amount, note, or category are missing or ambiguous.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -228,14 +269,15 @@ export async function POST(req: Request) {
     const chatId = message.chat.id;
     const userMessage = message.text.trim();
 
-    // 1. Immediately show "typing..." status in Telegram
+    // 1. Show typing status in Telegram immediately
     await sendTypingAction(chatId);
 
-    // Handle /start, greetings, or help commands directly
+    // Handle /start or greeting commands directly
     const lowerUserMsg = userMessage.toLowerCase().trim();
     const isGreeting =
-      userMessage.startsWith("/") ||
-      /^(hi+|hello+|hey+|hlo+|help|good\s*morning|good\s*evening|good\s*afternoon)/i.test(lowerUserMsg);
+      userMessage.startsWith("/start") ||
+      userMessage.startsWith("/help") ||
+      ["hi", "hello", "hey", "hlo", "help"].includes(lowerUserMsg);
 
     if (isGreeting) {
       await sendTelegramMessage(
@@ -254,14 +296,16 @@ export async function POST(req: Request) {
 
     const supabase = getServiceSupabase();
 
-    // 2. Fetch current categories for vault
-    const { data: categories } = await supabase
+    // Fetch current categories for vault (excluding _BOT_MEMORY_)
+    const { data: rawCategories } = await supabase
       .from("categories")
       .select("*")
       .eq("vault_code", DEFAULT_VAULT_CODE)
       .order("created_at", { ascending: true });
 
-    // 3. Fetch recent 30 transactions for vault context
+    const categories = (rawCategories || []).filter((c) => c.name !== "_BOT_MEMORY_");
+
+    // Fetch recent 30 transactions for vault context
     const { data: recentTransactions } = await supabase
       .from("transactions")
       .select("*, categories(name)")
@@ -269,7 +313,7 @@ export async function POST(req: Request) {
       .order("occurred_at", { ascending: false })
       .limit(30);
 
-    const categoryNamesList = (categories || []).map((c) => c.name).join(", ");
+    const categoryNamesList = categories.map((c) => c.name).join(", ");
     const recentLedgerFormatted = (recentTransactions || [])
       .map(
         (t, idx) =>
@@ -278,6 +322,9 @@ export async function POST(req: Request) {
           } | Date: ${t.occurred_at}`
       )
       .join("\n");
+
+    // Retrieve conversation history memory
+    const chatHistory = await getChatMemory(supabase);
 
     const systemPrompt = `You are the AutoTrack AI Assistant for personal finance ledger management.
 Your active Vault Code is: "${DEFAULT_VAULT_CODE}".
@@ -289,19 +336,52 @@ Available Categories in Vault:
 Recent Ledger Transactions (Ordered 1-based, newest first):
 ${recentLedgerFormatted || "No transactions recorded yet."}
 
-CRITICAL RULES:
-1. ADDING TRANSACTIONS:
-   - When user wants to log one or multiple transactions (e.g. "40 rs for friend under adjustment, 30rs for tea under clg works"), choose 'add_transactions' with an array of items.
-   - If user specifies a category name, provide category_name in the item. The system will auto-create the category if it does not exist yet. NEVER delete a transaction when asked to update it!
-2. UPDATING TRANSACTIONS:
-   - When user asks to update/edit a transaction (e.g. "update petrol transaction into clg category"), choose 'update_transaction'. DO NOT choose delete_transaction!
-3. DELETING TRANSACTIONS:
-   - Choose 'delete_transaction' ONLY when explicitly asked to delete/remove a transaction log (e.g. "delete 3rd log", "delete chocolates log").
-4. MANAGING CATEGORIES:
-   - Choose 'manage_categories' to create, update, or delete single or multiple categories (e.g. "create 3 categories named x, y (with 10k opening balance) and z").
-5. QUERYING ANALYTICS & LATEST TRANSACTIONS:
-   - Choose 'query_overview_analytics' when user asks about latest transaction, total expenses, category usage, daily/monthly summaries, or date ranges.
-6. Always choose a tool call matching user intent.`;
+CRITICAL MANDATORY RULES:
+1. 3 MANDATORY FIELDS FOR EVERY TRANSACTION:
+   Every transaction MUST have 3 mandatory fields:
+   a) Amount (numeric value e.g. 149)
+   b) Note / Description (e.g. "petrol", "ice cream")
+   c) Category (e.g. "college", "food")
+   If ANY of these 3 fields is missing when user asks to add a transaction (for example, "add petrol under college" which is missing the amount, or "add 100 under food" which is missing the note), YOU MUST NOT CALL 'add_transactions'! Instead, call 'ask_user_clarification' to ask for the specific missing field!
+
+2. CONVERSATION HISTORY & FOLLOW-UP ANSWERS:
+   Pay strict attention to the conversation history provided.
+   If you previously asked the user for a missing field (e.g. "Could you please specify the amount for the petrol transaction?") and the user replies with a number or text (e.g. "149" or "149 rs"), treat "149" as the missing amount for that pending petrol transaction under college, and call 'add_transactions' with amount: 149, note: "petrol", category_name: "college"!
+
+3. PAYMENT METHOD DEFAULT:
+   Default payment method is "UPI" unless the user explicitly states "Cash".
+
+4. ADDING TRANSACTIONS:
+   - When all 3 fields are present, choose 'add_transactions'. Auto-create category if it does not exist yet.
+
+5. UPDATING TRANSACTIONS:
+   - When user asks to edit/update a transaction, choose 'update_transaction'. DO NOT choose delete_transaction!
+
+6. DELETING TRANSACTIONS:
+   - Choose 'delete_transaction' ONLY when explicitly asked to delete/remove a transaction log.
+
+7. MANAGING CATEGORIES:
+   - Choose 'manage_categories' to create, update (opening balance, cap, name), or delete categories.
+
+8. QUERYING ANALYTICS:
+   - Choose 'query_overview_analytics' for totals, category lists, transaction counts, or transaction lists.`;
+
+    // Build multi-turn contents payload
+    const contentsPayload = [
+      ...chatHistory,
+      {
+        role: "user",
+        parts: [{ text: userMessage }],
+      },
+    ];
+
+    // Helper to send message and persist chat memory
+    async function recordAndSend(replyText: string) {
+      await sendTelegramMessage(chatId, replyText);
+      chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+      chatHistory.push({ role: "model", parts: [{ text: replyText }] });
+      await saveChatMemory(supabase, chatHistory);
+    }
 
     // Call Gemini API via REST with candidate models
     const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
@@ -315,12 +395,7 @@ CRITICAL RULES:
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [{ text: userMessage }],
-              },
-            ],
+            contents: contentsPayload,
             systemInstruction: {
               parts: [{ text: systemPrompt }],
             },
@@ -356,7 +431,7 @@ CRITICAL RULES:
 
     if (!functionCall) {
       const textReply = candidate?.content?.parts?.[0]?.text || "I'm sorry, I couldn't understand that request.";
-      await sendTelegramMessage(chatId, textReply);
+      await recordAndSend(textReply);
       return NextResponse.json({ status: "ok" });
     }
 
@@ -397,7 +472,8 @@ CRITICAL RULES:
     // --- TOOL EXECUTION SWITCH ---
 
     if (name === "ask_user_clarification") {
-      await sendTelegramMessage(chatId, args.question || "Could you please clarify your request?");
+      const question = args.question || "Could you please clarify your request?";
+      await recordAndSend(question);
       return NextResponse.json({ status: "ok" });
     }
 
@@ -405,7 +481,7 @@ CRITICAL RULES:
     if (name === "add_transactions") {
       const items = args.items || [];
       if (items.length === 0) {
-        await sendTelegramMessage(chatId, `⚠️ No transactions were specified.`);
+        await recordAndSend(`⚠️ No transactions were specified.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -413,6 +489,7 @@ CRITICAL RULES:
 
       for (const item of items) {
         const { id: catId, name: catName } = await getOrCreateCategory(item.category_name);
+        const method = item.payment_method?.toLowerCase() === "cash" ? "Cash" : "UPI";
 
         const newTx = {
           vault_code: DEFAULT_VAULT_CODE,
@@ -421,7 +498,7 @@ CRITICAL RULES:
           note: item.note || null,
           receiver_vendor: item.note || null,
           category_id: catId,
-          source_app: "Telegram Bot",
+          source_app: `Telegram Bot (${method})`,
           occurred_at: item.occurred_at || new Date().toISOString(),
         };
 
@@ -434,17 +511,16 @@ CRITICAL RULES:
         if (!insertErr && inserted) {
           const symbol = item.type === "income" ? "📈" : "💸";
           const noteStr = item.note ? ` ("${item.note}")` : "";
-          addedResults.push(`• ${symbol} *₹${item.amount}*${noteStr} → Category: *${catName}*`);
+          addedResults.push(`• ${symbol} *₹${item.amount}*${noteStr} → Category: *${catName}* [${method}]`);
         }
       }
 
       if (addedResults.length > 0) {
-        await sendTelegramMessage(
-          chatId,
+        await recordAndSend(
           `✅ *${addedResults.length} Transaction(s) Added Successfully!*\n\n` + addedResults.join("\n")
         );
       } else {
-        await sendTelegramMessage(chatId, `❌ Failed to insert transactions.`);
+        await recordAndSend(`❌ Failed to insert transactions.`);
       }
 
       return NextResponse.json({ status: "ok" });
@@ -468,7 +544,7 @@ CRITICAL RULES:
       }
 
       if (!targetTx) {
-        await sendTelegramMessage(chatId, `⚠️ Could not find a matching transaction to update.`);
+        await recordAndSend(`⚠️ Could not find a matching transaction to update.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -501,10 +577,9 @@ CRITICAL RULES:
         .eq("vault_code", DEFAULT_VAULT_CODE);
 
       if (upErr) {
-        await sendTelegramMessage(chatId, `❌ Failed to update transaction: ${upErr.message}`);
+        await recordAndSend(`❌ Failed to update transaction: ${upErr.message}`);
       } else {
-        await sendTelegramMessage(
-          chatId,
+        await recordAndSend(
           `✏️ *Transaction Updated Successfully!*\n\n` +
             `Target: ₹${targetTx.amount} ("${targetTx.note || targetTx.receiver_vendor || "N/A"}")\n` +
             `Updated Fields: ${updateMsgParts.join(", ")}`
@@ -546,7 +621,7 @@ CRITICAL RULES:
       }
 
       if (!targetTxId) {
-        await sendTelegramMessage(chatId, `⚠️ Could not find a matching transaction to delete.`);
+        await recordAndSend(`⚠️ Could not find a matching transaction to delete.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -557,9 +632,9 @@ CRITICAL RULES:
         .eq("vault_code", DEFAULT_VAULT_CODE);
 
       if (delErr) {
-        await sendTelegramMessage(chatId, `❌ Failed to delete transaction: ${delErr.message}`);
+        await recordAndSend(`❌ Failed to delete transaction: ${delErr.message}`);
       } else {
-        await sendTelegramMessage(chatId, `🗑️ *Transaction deleted successfully!* ${deletedInfo}`);
+        await recordAndSend(`🗑️ *Transaction deleted successfully!* ${deletedInfo}`);
       }
       return NextResponse.json({ status: "ok" });
     }
@@ -571,7 +646,13 @@ CRITICAL RULES:
       const results: string[] = [];
 
       for (const item of categoryList) {
-        const targetCat = (categories || []).find((c) => c.name.toLowerCase().trim() === item.name.toLowerCase().trim());
+        const qName = item.name.toLowerCase().trim();
+        const targetCat = (categories || []).find(
+          (c) =>
+            c.name.toLowerCase().trim() === qName ||
+            c.name.toLowerCase().includes(qName) ||
+            qName.includes(c.name.toLowerCase().trim())
+        );
 
         if (action === "create") {
           const { data: created, error } = await supabase
@@ -652,13 +733,12 @@ CRITICAL RULES:
 
       if (results.length > 0) {
         const symbol = action === "create" ? "✅" : action === "delete" ? "🗑️" : "✏️";
-        await sendTelegramMessage(
-          chatId,
+        await recordAndSend(
           `${symbol} *${results.length} Category(ies) ${action === "create" ? "Created" : action === "delete" ? "Deleted" : "Updated"} Successfully!*\n\n` +
             results.join("\n")
         );
       } else {
-        await sendTelegramMessage(chatId, `⚠️ No categories were modified.`);
+        await recordAndSend(`⚠️ No categories were modified.`);
       }
       return NextResponse.json({ status: "ok" });
     }
@@ -671,11 +751,10 @@ CRITICAL RULES:
       if (query_type === "latest_transaction") {
         const latest = (recentTransactions || [])[0];
         if (!latest) {
-          await sendTelegramMessage(chatId, `ℹ️ No transactions recorded yet in your ledger.`);
+          await recordAndSend(`ℹ️ No transactions recorded yet in your ledger.`);
         } else {
           const symbol = latest.type === "income" ? "📈" : "💸";
-          await sendTelegramMessage(
-            chatId,
+          await recordAndSend(
             `📌 *Latest Transaction Details*\n\n` +
               `${symbol} *Amount:* ₹${latest.amount}\n` +
               `📝 *Note:* ${latest.note || latest.receiver_vendor || "N/A"}\n` +
@@ -690,7 +769,7 @@ CRITICAL RULES:
       if (query_type === "list_categories") {
         const catList = categories || [];
         if (catList.length === 0) {
-          await sendTelegramMessage(chatId, `🏷️ No categories created yet in Vault "${DEFAULT_VAULT_CODE}".`);
+          await recordAndSend(`🏷️ No categories created yet in Vault "${DEFAULT_VAULT_CODE}".`);
         } else {
           const rows = catList
             .map(
@@ -700,8 +779,7 @@ CRITICAL RULES:
                 (c.monthly_cap ? ` [Cap: ₹${c.monthly_cap.toLocaleString("en-IN")}]` : "")
             )
             .join("\n");
-          await sendTelegramMessage(
-            chatId,
+          await recordAndSend(
             `🏷️ *Categories in Vault "${DEFAULT_VAULT_CODE}" (${catList.length}):*\n\n` + rows
           );
         }
@@ -716,7 +794,7 @@ CRITICAL RULES:
         .order("occurred_at", { ascending: false });
 
       if (txErr || !allTx) {
-        await sendTelegramMessage(chatId, `❌ Failed to fetch expense analytics.`);
+        await recordAndSend(`❌ Failed to fetch expense analytics.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -748,8 +826,7 @@ CRITICAL RULES:
         const tfLabel = timeframe ? ` (${timeframe.replace("_", " ")})` : "";
         let totalAmt = 0;
         filtered.forEach((t) => (totalAmt += Number(t.amount || 0)));
-        await sendTelegramMessage(
-          chatId,
+        await recordAndSend(
           `🔢 *Transaction Count Query*\n\n` +
             `Found *${filtered.length}* transaction(s)${catLabel}${tfLabel}.\n` +
             `💸 *Total Amount:* ₹${totalAmt.toLocaleString("en-IN")}`
@@ -762,7 +839,7 @@ CRITICAL RULES:
         const catLabel = category_name ? ` under "*${category_name}*"` : "";
         const tfLabel = timeframe ? ` (${timeframe.replace("_", " ")})` : "";
         if (filtered.length === 0) {
-          await sendTelegramMessage(chatId, `ℹ️ No transactions found matching your request.`);
+          await recordAndSend(`ℹ️ No transactions found matching your request.`);
         } else {
           const rows = filtered
             .map((t, idx) => {
@@ -770,8 +847,7 @@ CRITICAL RULES:
               return `[${idx + 1}] ${symbol} *₹${t.amount}* ("${t.note || t.receiver_vendor || "N/A"}") → *${t.categories?.name || "Uncategorized"}* (${t.occurred_at?.substring(0, 10)})`;
             })
             .join("\n");
-          await sendTelegramMessage(
-            chatId,
+          await recordAndSend(
             `📋 *Transactions List (${filtered.length})${catLabel}${tfLabel}:*\n\n` + rows
           );
         }
@@ -799,8 +875,7 @@ CRITICAL RULES:
 
       const label = timeframe ? timeframe.replace("_", " ").toUpperCase() : "OVERALL";
 
-      await sendTelegramMessage(
-        chatId,
+      await recordAndSend(
         `📊 *Expense Analytics (${label})*\n\n` +
           `💸 *Total Expenses:* ₹${totalExpense.toLocaleString("en-IN")}\n` +
           `📈 *Total Income:* ₹${totalIncome.toLocaleString("en-IN")}\n` +
@@ -822,7 +897,7 @@ CRITICAL RULES:
         .maybeSingle();
 
       if (!lastTx) {
-        await sendTelegramMessage(chatId, `⚠️ No recent transaction found to undo.`);
+        await recordAndSend(`⚠️ No recent transaction found to undo.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -833,11 +908,10 @@ CRITICAL RULES:
         .eq("vault_code", DEFAULT_VAULT_CODE);
 
       if (delErr) {
-        await sendTelegramMessage(chatId, `❌ Failed to undo last transaction: ${delErr.message}`);
+        await recordAndSend(`❌ Failed to undo last transaction: ${delErr.message}`);
       } else {
         const catName = lastTx.categories?.name || "Uncategorized";
-        await sendTelegramMessage(
-          chatId,
+        await recordAndSend(
           `↩️ *Undo Successful!*\n\n` +
             `Deleted last logged transaction:\n` +
             `• Amount: ₹${lastTx.amount}\n` +
@@ -859,7 +933,7 @@ CRITICAL RULES:
         .order("occurred_at", { ascending: false });
 
       if (txErr || !allTx || allTx.length === 0) {
-        await sendTelegramMessage(chatId, `⚠️ No transactions found to export.`);
+        await recordAndSend(`⚠️ No transactions found to export.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -882,7 +956,7 @@ CRITICAL RULES:
       }
 
       if (filtered.length === 0) {
-        await sendTelegramMessage(chatId, `⚠️ No transactions match your requested filter.`);
+        await recordAndSend(`⚠️ No transactions match your requested filter.`);
         return NextResponse.json({ status: "ok" });
       }
 
@@ -909,6 +983,11 @@ CRITICAL RULES:
         fileName,
         `📄 *Here is your requested transaction export file!* (${filtered.length} transactions)`
       );
+
+      // Record memory for export file
+      chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+      chatHistory.push({ role: "model", parts: [{ text: `Sent CSV export document for ${filtered.length} transactions.` }] });
+      await saveChatMemory(supabase, chatHistory);
 
       return NextResponse.json({ status: "ok" });
     }
