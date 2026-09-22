@@ -82,8 +82,48 @@ async function getChatMemory(supabase: any): Promise<ChatTurn[]> {
       .maybeSingle();
 
     if (data && data.icon) {
-      const parsed = JSON.parse(data.icon);
-      if (Array.isArray(parsed)) return parsed as ChatTurn[];
+      const parsed = typeof data.icon === "string" ? JSON.parse(data.icon) : data.icon;
+      if (Array.isArray(parsed)) {
+        const cleanTurns: ChatTurn[] = [];
+        for (const item of parsed) {
+          if (!item) continue;
+          const role = item.role === "user" || item.role === "model" ? item.role : null;
+          if (!role) continue;
+
+          let text = "";
+          if (Array.isArray(item.parts) && item.parts.length > 0) {
+            text = item.parts
+              .map((p: any) => (p && typeof p.text === "string" ? p.text : ""))
+              .filter(Boolean)
+              .join("\n")
+              .trim();
+          } else if (typeof item.text === "string") {
+            text = item.text.trim();
+          }
+
+          if (!text) continue;
+
+          if (cleanTurns.length === 0) {
+            if (role === "user") {
+              cleanTurns.push({ role: "user", parts: [{ text }] });
+            }
+          } else {
+            const lastTurn = cleanTurns[cleanTurns.length - 1];
+            if (lastTurn.role !== role) {
+              cleanTurns.push({ role, parts: [{ text }] });
+            } else {
+              lastTurn.parts[0].text += `\n${text}`;
+            }
+          }
+        }
+
+        // Must end with model turn so appending incoming user turn alternates properly
+        while (cleanTurns.length > 0 && cleanTurns[cleanTurns.length - 1].role === "user") {
+          cleanTurns.pop();
+        }
+
+        return cleanTurns;
+      }
     }
   } catch (e) {
     // ignore memory read error
@@ -93,12 +133,23 @@ async function getChatMemory(supabase: any): Promise<ChatTurn[]> {
 
 async function saveChatMemory(supabase: any, memory: ChatTurn[]) {
   try {
-    const recent = memory.slice(-10);
+    const sanitized = memory
+      .filter(
+        (t) =>
+          t &&
+          (t.role === "user" || t.role === "model") &&
+          Array.isArray(t.parts) &&
+          t.parts.length > 0 &&
+          typeof t.parts[0]?.text === "string" &&
+          t.parts[0].text.trim().length > 0
+      )
+      .slice(-10);
+
     await supabase.from("categories").upsert(
       {
         vault_code: DEFAULT_VAULT_CODE,
         name: "_BOT_MEMORY_",
-        icon: JSON.stringify(recent),
+        icon: JSON.stringify(sanitized),
       },
       { onConflict: "vault_code,name" }
     );
@@ -272,12 +323,16 @@ export async function POST(req: Request) {
     // 1. Show typing status in Telegram immediately
     await sendTypingAction(chatId);
 
-    // Handle /start or greeting commands directly
+    // Handle /start or pure greeting commands directly
     const lowerUserMsg = userMessage.toLowerCase().trim();
+    const cleanMsg = lowerUserMsg.replace(/[!.,?]+$/, "").trim();
+    const hasCommandKeywords = /\b(add|log|record|spend|spent|paid|received|delete|remove|update|change|create|list|export|show|what|whats|how|much|rs|inr|₹)\b/i.test(cleanMsg);
     const isGreeting =
-      userMessage.startsWith("/start") ||
-      userMessage.startsWith("/help") ||
-      ["hi", "hello", "hey", "hlo", "help"].includes(lowerUserMsg);
+      !hasCommandKeywords &&
+      (userMessage.startsWith("/start") ||
+        userMessage.startsWith("/help") ||
+        ["hi", "hii", "hiii", "hello", "hey", "heyy", "hlo", "help", "start"].includes(cleanMsg) ||
+        /^(hi+|hello+|hey+|hlo+|namaste|assalam\s*o\s*alaikum|salam|good\s*(morning|afternoon|evening))\b/i.test(cleanMsg));
 
     if (isGreeting) {
       await sendTelegramMessage(
@@ -383,8 +438,8 @@ CRITICAL MANDATORY RULES:
       await saveChatMemory(supabase, chatHistory);
     }
 
-    // Call Gemini API via REST with candidate models
-    const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+    // Call Gemini API via REST with candidate models (prioritize flash-lite for high availability and speed)
+    const candidateModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
     let geminiRes: Response | null = null;
     let lastErrorText = "";
 
@@ -401,6 +456,7 @@ CRITICAL MANDATORY RULES:
             },
             tools: GEMINI_TOOLS,
           }),
+          signal: AbortSignal.timeout(8000),
         });
 
         if (res.ok) {
@@ -419,7 +475,9 @@ CRITICAL MANDATORY RULES:
       console.error("All Gemini API candidate models failed:", lastErrorText);
       let errMsg = `⚠️ AI Service temporarily unavailable. Please try again.`;
       if (lastErrorText.includes("API key not valid")) {
-        errMsg = `⚠️ Gemini API Key invalid. Please verify your GEMINI_API_KEY environment variable in Vercel (make sure it starts with 'AQ.').`;
+        errMsg = `⚠️ Gemini API Key invalid. Please verify your GEMINI_API_KEY environment variable in Vercel.`;
+      } else if (lastErrorText.includes("RESOURCE_EXHAUSTED") || lastErrorText.includes("quota")) {
+        errMsg = `⚠️ Gemini API rate limit / quota exceeded. Please wait a minute and try again.`;
       }
       await sendTelegramMessage(chatId, errMsg);
       return NextResponse.json({ error: "Gemini call failed" }, { status: 500 });
@@ -512,7 +570,7 @@ CRITICAL MANDATORY RULES:
           note: item.note || null,
           receiver_vendor: item.note || null,
           category_id: catId,
-          source_app: `Telegram Bot (${method})`,
+          source_app: method === "Cash" ? "Cash" : "UPI",
           occurred_at: item.occurred_at || new Date().toISOString(),
         };
 
