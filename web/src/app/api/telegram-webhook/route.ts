@@ -531,8 +531,10 @@ CRITICAL MANDATORY RULES:
     }
 
     // --- HELPER FUNCTION: Find or Auto-Create Category ---
-    async function getOrCreateCategory(categoryName?: string): Promise<{ id: string | null; name: string }> {
-      if (!categoryName) return { id: null, name: "Uncategorized" };
+    async function getOrCreateCategory(
+      categoryName?: string
+    ): Promise<{ id: string | null; name: string; isNew: boolean }> {
+      if (!categoryName) return { id: null, name: "Uncategorized", isNew: false };
       const q = categoryName.toLowerCase().trim();
 
       const existing = (categories || []).find(
@@ -540,7 +542,7 @@ CRITICAL MANDATORY RULES:
       );
 
       if (existing) {
-        return { id: existing.id, name: existing.name };
+        return { id: existing.id, name: existing.name, isNew: false };
       }
 
       // Auto-create missing category in Supabase with smart emoji icon
@@ -557,7 +559,7 @@ CRITICAL MANDATORY RULES:
 
       if (!error && newCat) {
         categories.push(newCat);
-        return { id: newCat.id, name: newCat.name };
+        return { id: newCat.id, name: newCat.name, isNew: true };
       }
 
       // Fallback: If insert failed (e.g. category already exists or race condition), fetch it directly from DB
@@ -570,10 +572,10 @@ CRITICAL MANDATORY RULES:
 
       if (fallbackCat) {
         categories.push(fallbackCat);
-        return { id: fallbackCat.id, name: fallbackCat.name };
+        return { id: fallbackCat.id, name: fallbackCat.name, isNew: false };
       }
 
-      return { id: null, name: categoryName };
+      return { id: null, name: categoryName, isNew: false };
     }
 
     // --- TOOL EXECUTION SWITCH ---
@@ -595,13 +597,14 @@ CRITICAL MANDATORY RULES:
       const addedResults: string[] = [];
 
       for (const item of items) {
-        const { id: catId, name: catName } = await getOrCreateCategory(item.category_name);
+        const { id: catId, name: catName, isNew } = await getOrCreateCategory(item.category_name);
         const method = item.payment_method?.toLowerCase() === "cash" ? "Cash" : "UPI";
+        const txType = item.type === "income" ? "income" : "expense";
 
         const newTx = {
           vault_code: DEFAULT_VAULT_CODE,
           amount: item.amount,
-          type: item.type || "expense",
+          type: txType,
           note: item.note || null,
           receiver_vendor: item.note || null,
           category_id: catId,
@@ -616,16 +619,30 @@ CRITICAL MANDATORY RULES:
           .single();
 
         if (!insertErr && inserted) {
-          const symbol = item.type === "income" ? "📈" : "💸";
-          const noteStr = item.note ? ` ("${item.note}")` : "";
-          addedResults.push(`• ${symbol} *₹${item.amount}*${noteStr} → Category: *${catName}* [${method}]`);
+          const isIncome = txType === "income";
+          const typeLabel = isIncome ? "📈 *Income:*" : "💸 *Expense:*";
+          const noteLabel = item.note ? ` for "${item.note}"` : "";
+
+          let catStatus = "";
+          if (isNew) {
+            catStatus = `\n  ↳ ("${catName}" not found, created new category "${catName}" and added into it)`;
+          } else if (catId) {
+            catStatus = `\n  ↳ (added to existing category "${catName}")`;
+          } else {
+            catStatus = `\n  ↳ (added as Uncategorized)`;
+          }
+
+          addedResults.push(`• ${typeLabel} ₹${item.amount}${noteLabel} [${method}]${catStatus}`);
         }
       }
 
       if (addedResults.length > 0) {
-        await recordAndSend(
-          `✅ *${addedResults.length} Transaction(s) Added Successfully!*\n\n` + addedResults.join("\n")
-        );
+        const title =
+          addedResults.length === 1
+            ? `✅ *Transaction Logged Successfully!*`
+            : `✅ *${addedResults.length} Transactions Logged Successfully!*`;
+
+        await recordAndSend(`${title}\n\n` + addedResults.join("\n"));
       } else {
         await recordAndSend(`❌ Failed to insert transactions.`);
       }

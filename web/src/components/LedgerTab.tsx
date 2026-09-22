@@ -705,11 +705,11 @@ export default function LedgerTab() {
                             </span>
                           )}
                         </div>
-                        {t.receiver_vendor && t.note && (
+                        {/* {t.receiver_vendor && t.note && (
                           <p className="text-[11px] text-slate-400 truncate mt-0.5">
                             {t.note}
                           </p>
-                        )}
+                        )} */}
                       </td>
 
                       {/* Category */}
