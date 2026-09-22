@@ -177,7 +177,7 @@ const GEMINI_TOOLS = [
                   amount: { type: "NUMBER", description: "Transaction amount in INR" },
                   note: { type: "STRING", description: "Note, description, or vendor (e.g. petrol, ice cream, salary)" },
                   category_name: { type: "STRING", description: "Category name. If category doesn't exist, it will be created." },
-                  type: { type: "STRING", enum: ["expense", "income"], description: "Transaction type" },
+                  type: { type: "STRING", enum: ["expense", "income"], description: "Transaction type. Default is 'expense'. Choose 'income' only if explicitly stated as income, salary, or received money." },
                   payment_method: { type: "STRING", description: "UPI (default) or Cash" },
                   occurred_at: { type: "STRING", description: "ISO date string or relative date if specified" },
                 },
@@ -220,7 +220,7 @@ const GEMINI_TOOLS = [
       },
       {
         name: "manage_categories",
-        description: "Create, rename, update properties (opening balance, monthly cap), or delete one or multiple categories.",
+        description: "Create, rename, update properties (monthly cap), or delete one or multiple categories.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -233,7 +233,6 @@ const GEMINI_TOOLS = [
                 properties: {
                   name: { type: "STRING", description: "Target or new category name" },
                   new_name: { type: "STRING", description: "New name if renaming" },
-                  opening_balance: { type: "NUMBER", description: "Opening balance amount" },
                   monthly_cap: { type: "NUMBER", description: "Monthly budget cap amount" },
                 },
                 required: ["name"],
@@ -403,22 +402,27 @@ CRITICAL MANDATORY RULES:
    Pay strict attention to the conversation history provided.
    If you previously asked the user for a missing field (e.g. "Could you please specify the amount for the petrol transaction?") and the user replies with a number or text (e.g. "149" or "149 rs"), treat "149" as the missing amount for that pending petrol transaction under college, and call 'add_transactions' with amount: 149, note: "petrol", category_name: "college"!
 
-3. PAYMENT METHOD DEFAULT:
+3. TRANSACTION TYPE DEFAULT (EXPENSE VS INCOME):
+   Default transaction type is ALWAYS "expense"!
+   Phrases like "100 for frnd 1", "50 rs for tea", "paid 200", "bought book", "100 for petrol" are ALL EXPENSES (type: "expense")!
+   Choose type "income" ONLY if user explicitly says "income", "received", "got", "salary", "cashback", "credit", or "deposit"!
+
+4. PAYMENT METHOD DEFAULT:
    Default payment method is "UPI" unless the user explicitly states "Cash".
 
-4. ADDING TRANSACTIONS:
+5. ADDING TRANSACTIONS:
    - When all 3 fields are present, choose 'add_transactions'. Auto-create category if it does not exist yet.
 
-5. UPDATING TRANSACTIONS:
+6. UPDATING TRANSACTIONS:
    - When user asks to edit/update a transaction, choose 'update_transaction'. DO NOT choose delete_transaction!
 
-6. DELETING TRANSACTIONS:
+7. DELETING TRANSACTIONS:
    - Choose 'delete_transaction' ONLY when explicitly asked to delete/remove a transaction log.
 
-7. MANAGING CATEGORIES:
-   - Choose 'manage_categories' to create, update (opening balance, cap, name), or delete categories.
+8. MANAGING CATEGORIES:
+   - Choose 'manage_categories' to create, rename, or delete categories.
 
-8. QUERYING ANALYTICS:
+9. QUERYING ANALYTICS:
    - Choose 'query_overview_analytics' for totals, category lists, transaction counts, or transaction lists.`;
 
     // Build multi-turn contents payload
@@ -444,31 +448,43 @@ CRITICAL MANDATORY RULES:
     let lastErrorText = "";
 
     for (const model of candidateModels) {
-      try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-        const res = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: contentsPayload,
-            systemInstruction: {
-              parts: [{ text: systemPrompt }],
-            },
-            tools: GEMINI_TOOLS,
-          }),
-          signal: AbortSignal.timeout(8000),
-        });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+          const res = await fetch(geminiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: contentsPayload,
+              systemInstruction: {
+                parts: [{ text: systemPrompt }],
+              },
+              tools: GEMINI_TOOLS,
+            }),
+            signal: AbortSignal.timeout(8000),
+          });
 
-        if (res.ok) {
-          geminiRes = res;
+          if (res.ok) {
+            geminiRes = res;
+            break;
+          } else {
+            lastErrorText = await res.text();
+            console.warn(`Gemini model ${model} (attempt ${attempt + 1}) returned error:`, lastErrorText);
+            // If rate limited or service busy, wait 1.2s and retry
+            if (res.status === 429 || res.status === 503) {
+              if (attempt === 0) {
+                await new Promise((r) => setTimeout(r, 1200));
+                continue;
+              }
+            }
+            break;
+          }
+        } catch (e: any) {
+          lastErrorText = e.message || String(e);
           break;
-        } else {
-          lastErrorText = await res.text();
-          console.warn(`Gemini model ${model} returned error:`, lastErrorText);
         }
-      } catch (e: any) {
-        lastErrorText = e.message || String(e);
       }
+      if (geminiRes?.ok) break;
     }
 
     if (!geminiRes || !geminiRes.ok) {
@@ -476,8 +492,8 @@ CRITICAL MANDATORY RULES:
       let errMsg = `⚠️ AI Service temporarily unavailable. Please try again.`;
       if (lastErrorText.includes("API key not valid")) {
         errMsg = `⚠️ Gemini API Key invalid. Please verify your GEMINI_API_KEY environment variable in Vercel.`;
-      } else if (lastErrorText.includes("RESOURCE_EXHAUSTED") || lastErrorText.includes("quota")) {
-        errMsg = `⚠️ Gemini API rate limit / quota exceeded. Please wait a minute and try again.`;
+      } else if (lastErrorText.includes("RESOURCE_EXHAUSTED") || lastErrorText.includes("quota") || lastErrorText.includes("429")) {
+        errMsg = `⚠️ AI Assistant is momentarily busy. Please try again in a few seconds.`;
       }
       await sendTelegramMessage(chatId, errMsg);
       return NextResponse.json({ error: "Gemini call failed" }, { status: 500 });
@@ -535,7 +551,21 @@ CRITICAL MANDATORY RULES:
         .single();
 
       if (!error && newCat) {
+        categories.push(newCat);
         return { id: newCat.id, name: newCat.name };
+      }
+
+      // Fallback: If insert failed (e.g. category already exists or race condition), fetch it directly from DB
+      const { data: fallbackCat } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .ilike("name", categoryName.trim())
+        .maybeSingle();
+
+      if (fallbackCat) {
+        categories.push(fallbackCat);
+        return { id: fallbackCat.id, name: fallbackCat.name };
       }
 
       return { id: null, name: categoryName };
@@ -734,21 +764,21 @@ CRITICAL MANDATORY RULES:
               name: item.name.trim(),
               icon: getCategoryEmoji(item.name),
               color: "#3B82F6",
-              opening_balance: item.opening_balance || 0,
               monthly_cap: item.monthly_cap || null,
             })
             .select()
             .single();
 
           if (!error && created) {
-            const obStr = item.opening_balance ? ` (Opening Balance: ₹${item.opening_balance.toLocaleString("en-IN")})` : "";
-            results.push(`• *"${created.name}"*${obStr}`);
+            categories.push(created);
+            results.push(`• *"${created.name}"*`);
+          } else {
+            console.error("Failed to create category:", error?.message);
           }
         } else if (action === "update") {
           if (targetCat) {
             const updates: any = {};
             if (item.new_name) updates.name = item.new_name.trim();
-            if (item.opening_balance !== undefined) updates.opening_balance = item.opening_balance;
             if (item.monthly_cap !== undefined) updates.monthly_cap = item.monthly_cap;
 
             const { error } = await supabase
@@ -758,9 +788,8 @@ CRITICAL MANDATORY RULES:
               .eq("vault_code", DEFAULT_VAULT_CODE);
 
             if (!error) {
-              const obStr = item.opening_balance !== undefined ? ` (Opening Balance: ₹${item.opening_balance.toLocaleString("en-IN")})` : "";
               const catDisplayName = item.new_name ? `"${targetCat.name}" renamed to "${item.new_name}"` : `"${targetCat.name}"`;
-              results.push(`• *${catDisplayName}*${obStr} updated`);
+              results.push(`• *${catDisplayName}* updated`);
             }
           } else {
             // Auto-create category if update target wasn't found
@@ -771,15 +800,14 @@ CRITICAL MANDATORY RULES:
                 name: (item.new_name || item.name).trim(),
                 icon: getCategoryEmoji(item.name),
                 color: "#3B82F6",
-                opening_balance: item.opening_balance || 0,
                 monthly_cap: item.monthly_cap || null,
               })
               .select()
               .single();
 
             if (!error && created) {
-              const obStr = item.opening_balance ? ` (Opening Balance: ₹${item.opening_balance.toLocaleString("en-IN")})` : "";
-              results.push(`• *"${created.name}"* created${obStr}`);
+              categories.push(created);
+              results.push(`• *"${created.name}"* created`);
             }
           }
         } else if (action === "delete" && targetCat) {
