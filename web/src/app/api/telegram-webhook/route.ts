@@ -74,12 +74,12 @@ interface ChatTurn {
   parts: Array<{ text: string }>;
 }
 
-async function getChatMemory(supabase: any): Promise<ChatTurn[]> {
+async function getChatMemory(supabase: any, vaultCode: string): Promise<ChatTurn[]> {
   try {
     const { data } = await supabase
       .from("categories")
       .select("icon")
-      .eq("vault_code", DEFAULT_VAULT_CODE)
+      .eq("vault_code", vaultCode)
       .eq("name", "_BOT_MEMORY_")
       .maybeSingle();
 
@@ -133,7 +133,7 @@ async function getChatMemory(supabase: any): Promise<ChatTurn[]> {
   return [];
 }
 
-async function saveChatMemory(supabase: any, memory: ChatTurn[]) {
+async function saveChatMemory(supabase: any, vaultCode: string, memory: ChatTurn[]) {
   try {
     const sanitized = memory
       .filter(
@@ -149,7 +149,7 @@ async function saveChatMemory(supabase: any, memory: ChatTurn[]) {
 
     await supabase.from("categories").upsert(
       {
-        vault_code: DEFAULT_VAULT_CODE,
+        vault_code: vaultCode,
         name: "_BOT_MEMORY_",
         icon: JSON.stringify(sanitized),
       },
@@ -324,6 +324,102 @@ export async function POST(req: Request) {
     // 1. Show typing status in Telegram immediately
     await sendTypingAction(chatId);
 
+    const supabase = getServiceSupabase();
+
+    // Check if this Telegram chatId is linked to a vault
+    const { data: userMapping } = await supabase
+      .from("categories")
+      .select("vault_code, color, icon")
+      .eq("name", "_TG_" + chatId)
+      .maybeSingle();
+
+    // Check if user is attempting to link or switch a vault code
+    const potentialCode = userMessage
+      .toUpperCase()
+      .replace(/^\/(LINK|SWITCH|LOGIN|VAULT|START)\s*/i, "")
+      .trim();
+
+    const isLinkCommand =
+      userMessage.startsWith("/link") ||
+      userMessage.startsWith("/switch") ||
+      !userMapping;
+
+    if (isLinkCommand && potentialCode.length >= 4 && potentialCode.length <= 20) {
+      const { data: matchedVault } = await supabase
+        .from("vault_codes")
+        .select("code, label")
+        .eq("code", potentialCode)
+        .maybeSingle();
+
+      if (matchedVault) {
+        const uName = matchedVault.label || message.from?.first_name || "User";
+        // Remove existing mapping for this chatId if any
+        await supabase.from("categories").delete().eq("name", "_TG_" + chatId);
+
+        // Store new link with uName in color
+        await supabase.from("categories").insert({
+          vault_code: matchedVault.code,
+          name: "_TG_" + chatId,
+          color: uName,
+          icon: JSON.stringify({
+            chatId,
+            userName: uName,
+            telegramFirstName: message.from?.first_name || "",
+            telegramLastName: message.from?.last_name || "",
+            telegramUsername: message.from?.username || "",
+            linkedAt: new Date().toISOString(),
+          }),
+        });
+
+        await sendTelegramMessage(
+          chatId,
+          `👤 *${uName}*\n\n` +
+            `🎉 *Vault Connected Successfully!*\n\n` +
+            `Welcome, *${uName}*! Your personal ledger vault has been linked to this chat.\n` +
+            `Your vault code is secured and permanently hidden in this chat.\n\n` +
+            `You can now start managing your finances naturally:\n` +
+            `• *"50 rs for tea under college"*\n` +
+            `• *"100 for petrol"*\n` +
+            `• *"Give me monthly expenses of this month"*`
+        );
+        return NextResponse.json({ status: "ok" });
+      } else if (userMessage.startsWith("/link") || userMessage.startsWith("/switch")) {
+        await sendTelegramMessage(
+          chatId,
+          `❌ *Invalid Vault Code*\n\n` +
+            `The Vault Code you entered was not found in AutoTrack. Please check your vault code from the Web App and try again.`
+        );
+        return NextResponse.json({ status: "ok" });
+      }
+    }
+
+    // If user is NOT linked and didn't provide a valid vault code:
+    if (!userMapping) {
+      await sendTelegramMessage(
+        chatId,
+        `🔒 *Welcome to AutoTrack!*\n\n` +
+          `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
+          `*(Example: \`ANAS4455\` or \`SASI1234\`)*\n` +
+          `*(Once connected, your Vault Code will be permanently hidden and secured).*`
+      );
+      return NextResponse.json({ status: "ok" });
+    }
+
+    const activeVaultCode = userMapping.vault_code;
+    const userName = userMapping.color || "User";
+
+    // Handle /whoami or /vault query
+    if (userMessage.startsWith("/whoami") || userMessage.startsWith("/vault")) {
+      await sendTelegramMessage(
+        chatId,
+        `👤 *${userName}*\n\n` +
+          `Connected as *${userName}*.\n` +
+          `Your vault is active, private, and secured.\n\n` +
+          `To switch to a different vault, send: \`/switch <NEW_VAULT_CODE>\``
+      );
+      return NextResponse.json({ status: "ok" });
+    }
+
     // Handle /start or pure greeting commands directly
     const lowerUserMsg = userMessage.toLowerCase().trim();
     const cleanMsg = lowerUserMsg.replace(/[!.,?]+$/, "").trim();
@@ -338,10 +434,11 @@ export async function POST(req: Request) {
     if (isGreeting) {
       await sendTelegramMessage(
         chatId,
-        `👋 *Hello! I'm your AutoTrack AI Assistant.*\n\nYou can talk to me naturally in plain English to manage your expense ledger. Here are some things you can try:\n\n` +
+        `👤 *${userName}*\n\n` +
+          `👋 *Hello, ${userName}! I'm your AutoTrack AI Assistant.*\n\nYou can talk to me naturally in plain English to manage your expense ledger. Here are some things you can try:\n\n` +
           `• *"50 rs for ice cream under regular expenses"*\n` +
           `• *"40 rs for friend under adjustment, 30rs for tea under clg works, 24 rs for beggar under donation"*\n` +
-          `• *"Create 3 categories named x, y (with 10k opening balance), and z"*\n` +
+          `• *"Create 3 categories named x, y, and z"*\n` +
           `• *"Update petrol transaction to clg category"*\n` +
           `• *"Whats the latest transaction?"*\n` +
           `• *"Delete 3rd log in ledger"*\n` +
@@ -350,22 +447,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "ok" });
     }
 
-    const supabase = getServiceSupabase();
-
-    // Fetch current categories for vault (excluding _BOT_MEMORY_)
+    // Fetch current categories for active vault (excluding _BOT_MEMORY_ and _TG_ user links)
     const { data: rawCategories } = await supabase
       .from("categories")
       .select("*")
-      .eq("vault_code", DEFAULT_VAULT_CODE)
+      .eq("vault_code", activeVaultCode)
       .order("created_at", { ascending: true });
 
-    const categories = (rawCategories || []).filter((c) => c.name !== "_BOT_MEMORY_");
+    const categories = (rawCategories || []).filter(
+      (c) => c.name !== "_BOT_MEMORY_" && !c.name.startsWith("_TG_")
+    );
 
-    // Fetch recent 30 transactions for vault context
+    // Fetch recent 30 transactions for active vault context
     const { data: recentTransactions } = await supabase
       .from("transactions")
       .select("*, categories(name)")
-      .eq("vault_code", DEFAULT_VAULT_CODE)
+      .eq("vault_code", activeVaultCode)
       .order("occurred_at", { ascending: false })
       .limit(30);
 
@@ -379,17 +476,21 @@ export async function POST(req: Request) {
       )
       .join("\n");
 
-    // Retrieve conversation history memory
-    const chatHistory = await getChatMemory(supabase);
+    // Retrieve conversation history memory for active vault
+    const chatHistory = await getChatMemory(supabase, activeVaultCode);
 
     const systemPrompt = `You are the AutoTrack AI Assistant for personal finance ledger management.
-Your active Vault Code is: "${DEFAULT_VAULT_CODE}".
+You are assisting user: "${userName}".
 Current Date & Time: ${new Date().toISOString()}.
+
+PRIVACY & IDENTITY MANDATE:
+- The user's name is "${userName}".
+- CONFIDENTIALITY: NEVER reveal, display, or repeat any raw vault code in your chat responses. The vault code is private, confidential, and permanently hidden. Always refer to the user by their name: "${userName}".
 
 Available Categories in Vault:
 [ ${categoryNamesList || "None"} ]
 
-Recent Ledger Transactions (Ordered 1-based, newest first):
+Recent Ledger Transactions for ${userName} (Ordered 1-based, newest first):
 ${recentLedgerFormatted || "No transactions recorded yet."}
 
 CRITICAL MANDATORY RULES:
@@ -447,12 +548,14 @@ CRITICAL MANDATORY RULES:
       },
     ];
 
-    // Helper to send message and persist chat memory
+    // Helper to send message with user header and persist chat memory
     async function recordAndSend(replyText: string) {
-      await sendTelegramMessage(chatId, replyText);
+      const header = `👤 *${userName}*\n\n`;
+      const fullText = replyText.startsWith("👤 *") ? replyText : `${header}${replyText}`;
+      await sendTelegramMessage(chatId, fullText);
       chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
-      chatHistory.push({ role: "model", parts: [{ text: replyText }] });
-      await saveChatMemory(supabase, chatHistory);
+      chatHistory.push({ role: "model", parts: [{ text: fullText }] });
+      await saveChatMemory(supabase, activeVaultCode, chatHistory);
     }
 
     // Call Gemini API via REST with candidate models
@@ -526,7 +629,7 @@ CRITICAL MANDATORY RULES:
       } else if (allErrors.includes("503") || allErrors.includes("UNAVAILABLE")) {
         errMsg = `⚠️ AI Service is momentarily busy. Please try sending your message again in a few seconds.`;
       }
-      await sendTelegramMessage(chatId, errMsg);
+      await sendTelegramMessage(chatId, `👤 *${userName}*\n\n${errMsg}`);
       return NextResponse.json({ error: "Gemini call failed" }, { status: 500 });
     }
 
@@ -641,7 +744,7 @@ CRITICAL MANDATORY RULES:
       const { data: newCat, error } = await supabase
         .from("categories")
         .insert({
-          vault_code: DEFAULT_VAULT_CODE,
+          vault_code: activeVaultCode,
           name: q,
           icon: getCategoryEmoji(q),
           color: "#3B82F6",
@@ -658,7 +761,7 @@ CRITICAL MANDATORY RULES:
       const { data: fallbackCat } = await supabase
         .from("categories")
         .select("id, name")
-        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .eq("vault_code", activeVaultCode)
         .ilike("name", q)
         .maybeSingle();
 
@@ -713,7 +816,7 @@ CRITICAL MANDATORY RULES:
         const txType = item.type === "income" ? "income" : "expense";
 
         const newTx = {
-          vault_code: DEFAULT_VAULT_CODE,
+          vault_code: activeVaultCode,
           amount: item.amount,
           type: txType,
           note: item.note || null,
@@ -809,7 +912,7 @@ CRITICAL MANDATORY RULES:
         .from("transactions")
         .update(updates)
         .eq("id", targetTx.id)
-        .eq("vault_code", DEFAULT_VAULT_CODE);
+        .eq("vault_code", activeVaultCode);
 
       if (upErr) {
         await recordAndSend(`❌ Failed to update transaction: ${upErr.message}`);
@@ -864,7 +967,7 @@ CRITICAL MANDATORY RULES:
         .from("transactions")
         .delete()
         .eq("id", targetTxId)
-        .eq("vault_code", DEFAULT_VAULT_CODE);
+        .eq("vault_code", activeVaultCode);
 
       if (delErr) {
         await recordAndSend(`❌ Failed to delete transaction: ${delErr.message}`);
@@ -893,7 +996,7 @@ CRITICAL MANDATORY RULES:
           const { data: created, error } = await supabase
             .from("categories")
             .insert({
-              vault_code: DEFAULT_VAULT_CODE,
+              vault_code: activeVaultCode,
               name: item.name.trim(),
               icon: getCategoryEmoji(item.name),
               color: "#3B82F6",
@@ -918,7 +1021,7 @@ CRITICAL MANDATORY RULES:
               .from("categories")
               .update(updates)
               .eq("id", targetCat.id)
-              .eq("vault_code", DEFAULT_VAULT_CODE);
+              .eq("vault_code", activeVaultCode);
 
             if (!error) {
               const catDisplayName = item.new_name ? `"${targetCat.name}" renamed to "${item.new_name}"` : `"${targetCat.name}"`;
@@ -929,7 +1032,7 @@ CRITICAL MANDATORY RULES:
             const { data: created, error } = await supabase
               .from("categories")
               .insert({
-                vault_code: DEFAULT_VAULT_CODE,
+                vault_code: activeVaultCode,
                 name: (item.new_name || item.name).trim(),
                 icon: getCategoryEmoji(item.name),
                 color: "#3B82F6",
@@ -949,14 +1052,14 @@ CRITICAL MANDATORY RULES:
             .from("transactions")
             .update({ category_id: null })
             .eq("category_id", targetCat.id)
-            .eq("vault_code", DEFAULT_VAULT_CODE);
+            .eq("vault_code", activeVaultCode);
 
           // Delete category
           const { error } = await supabase
             .from("categories")
             .delete()
             .eq("id", targetCat.id)
-            .eq("vault_code", DEFAULT_VAULT_CODE);
+            .eq("vault_code", activeVaultCode);
 
           if (!error) {
             results.push(`• *"${targetCat.name}"* deleted (Transactions moved to Uncategorized)`);
@@ -1002,7 +1105,7 @@ CRITICAL MANDATORY RULES:
       if (query_type === "list_categories") {
         const catList = categories || [];
         if (catList.length === 0) {
-          await recordAndSend(`🏷️ No categories created yet in Vault "${DEFAULT_VAULT_CODE}".`);
+          await recordAndSend(`🏷️ No categories created yet for ${userName}.`);
         } else {
           const rows = catList
             .map(
@@ -1013,7 +1116,7 @@ CRITICAL MANDATORY RULES:
             )
             .join("\n");
           await recordAndSend(
-            `🏷️ *Categories in Vault "${DEFAULT_VAULT_CODE}" (${catList.length}):*\n\n` + rows
+            `🏷️ *Categories for ${userName} (${catList.length}):*\n\n` + rows
           );
         }
         return NextResponse.json({ status: "ok" });
@@ -1023,7 +1126,7 @@ CRITICAL MANDATORY RULES:
       const { data: allTx, error: txErr } = await supabase
         .from("transactions")
         .select("*, categories(name)")
-        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .eq("vault_code", activeVaultCode)
         .order("occurred_at", { ascending: false });
 
       if (txErr || !allTx) {
@@ -1139,7 +1242,7 @@ CRITICAL MANDATORY RULES:
       const { data: lastTx } = await supabase
         .from("transactions")
         .select("*, categories(name)")
-        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .eq("vault_code", activeVaultCode)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -1153,7 +1256,7 @@ CRITICAL MANDATORY RULES:
         .from("transactions")
         .delete()
         .eq("id", lastTx.id)
-        .eq("vault_code", DEFAULT_VAULT_CODE);
+        .eq("vault_code", activeVaultCode);
 
       if (delErr) {
         await recordAndSend(`❌ Failed to undo last transaction: ${delErr.message}`);
@@ -1177,7 +1280,7 @@ CRITICAL MANDATORY RULES:
       const { data: allTx, error: txErr } = await supabase
         .from("transactions")
         .select("*, categories(name)")
-        .eq("vault_code", DEFAULT_VAULT_CODE)
+        .eq("vault_code", activeVaultCode)
         .order("occurred_at", { ascending: false });
 
       if (txErr || !allTx || allTx.length === 0) {
@@ -1244,13 +1347,13 @@ CRITICAL MANDATORY RULES:
         chatId,
         csvContent,
         fileName,
-        `📄 *Here is your requested transaction export file!* (${filtered.length} transactions)`
+        `👤 *${userName}*\n\n📄 *Here is your requested transaction export file!* (${filtered.length} transactions)`
       );
 
       // Record memory for export file
       chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
       chatHistory.push({ role: "model", parts: [{ text: `Sent CSV export document for ${filtered.length} transactions.` }] });
-      await saveChatMemory(supabase, chatHistory);
+      await saveChatMemory(supabase, activeVaultCode, chatHistory);
 
       return NextResponse.json({ status: "ok" });
     }
