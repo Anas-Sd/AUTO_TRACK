@@ -374,20 +374,20 @@ export async function POST(req: Request) {
         await sendTelegramMessage(
           chatId,
           `👤 *${uName}*\n\n` +
-            `🎉 *Vault Connected Successfully!*\n\n` +
-            `Welcome, *${uName}*! Your personal ledger vault has been linked to this chat.\n` +
-            `Your vault code is secured and permanently hidden in this chat.\n\n` +
-            `You can now start managing your finances naturally:\n` +
-            `• *"50 rs for tea under college"*\n` +
-            `• *"100 for petrol"*\n` +
-            `• *"Give me monthly expenses of this month"*`
+          `🎉 *Vault Connected Successfully!*\n\n` +
+          `Welcome, *${uName}*! Your personal ledger vault has been linked to this chat.\n` +
+          `Your vault code is secured and permanently hidden in this chat.\n\n` +
+          `You can now start managing your finances naturally:\n` +
+          `• *"50 rs for tea under college"*\n` +
+          `• *"100 for petrol"*\n` +
+          `• *"Give me monthly expenses of this month"*`
         );
         return NextResponse.json({ status: "ok" });
       } else if (userMessage.startsWith("/link") || userMessage.startsWith("/switch")) {
         await sendTelegramMessage(
           chatId,
           `❌ *Invalid Vault Code*\n\n` +
-            `The Vault Code you entered was not found in AutoTrack. Please check your vault code from the Web App and try again.`
+          `The Vault Code you entered was not found in AutoTrack. Please check your vault code from the Web App and try again.`
         );
         return NextResponse.json({ status: "ok" });
       }
@@ -398,9 +398,9 @@ export async function POST(req: Request) {
       await sendTelegramMessage(
         chatId,
         `🔒 *Welcome to AutoTrack!*\n\n` +
-          `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
-          `*(Example: \`ANAS4455\` or \`SASI1234\`)*\n` +
-          `*(Once connected, your Vault Code will be permanently hidden and secured).*`
+        `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
+        `*(Example: \`ABCD1234\`)*\n` +
+        `*(Once connected, your Vault Code will be permanently hidden and secured).*`
       );
       return NextResponse.json({ status: "ok" });
     }
@@ -413,9 +413,9 @@ export async function POST(req: Request) {
       await sendTelegramMessage(
         chatId,
         `👤 *${userName}*\n\n` +
-          `Connected as *${userName}*.\n` +
-          `Your vault is active, private, and secured.\n\n` +
-          `To switch to a different vault, send: \`/switch <NEW_VAULT_CODE>\``
+        `Connected as *${userName}*.\n` +
+        `Your vault is active, private, and secured.\n\n` +
+        `To switch to a different vault, send: \`/switch <NEW_VAULT_CODE>\``
       );
       return NextResponse.json({ status: "ok" });
     }
@@ -435,14 +435,14 @@ export async function POST(req: Request) {
       await sendTelegramMessage(
         chatId,
         `👤 *${userName}*\n\n` +
-          `👋 *Hello, ${userName}! I'm your AutoTrack AI Assistant.*\n\nYou can talk to me naturally in plain English to manage your expense ledger. Here are some things you can try:\n\n` +
-          `• *"50 rs for ice cream under regular expenses"*\n` +
-          `• *"40 rs for friend under adjustment, 30rs for tea under clg works, 24 rs for beggar under donation"*\n` +
-          `• *"Create 3 categories named x, y, and z"*\n` +
-          `• *"Update petrol transaction to clg category"*\n` +
-          `• *"Whats the latest transaction?"*\n` +
-          `• *"Delete 3rd log in ledger"*\n` +
-          `• *"Give me monthly expenses of September"*`
+        `👋 *Hello, ${userName}! I'm your AutoTrack AI Assistant.*\n\nYou can talk to me naturally in plain English to manage your expense ledger. Here are some things you can try:\n\n` +
+        `• *"50 rs for ice cream under regular expenses"*\n` +
+        `• *"40 rs for friend under adjustment, 30rs for tea under clg works, 24 rs for beggar under donation"*\n` +
+        `• *"Create 3 categories named x, y, and z"*\n` +
+        `• *"Update petrol transaction to clg category"*\n` +
+        `• *"Whats the latest transaction?"*\n` +
+        `• *"Delete 3rd log in ledger"*\n` +
+        `• *"Give me monthly expenses of September"*`
       );
       return NextResponse.json({ status: "ok" });
     }
@@ -470,8 +470,7 @@ export async function POST(req: Request) {
     const recentLedgerFormatted = (recentTransactions || [])
       .map(
         (t, idx) =>
-          `[${idx + 1}] ID:${t.id} | ${t.type.toUpperCase()} | ₹${t.amount} | Note: "${t.note || t.receiver_vendor || "N/A"}" | Category: ${
-            t.categories?.name || "Uncategorized"
+          `[${idx + 1}] ID:${t.id} | ${t.type.toUpperCase()} | ₹${t.amount} | Note: "${t.note || t.receiver_vendor || "N/A"}" | Category: ${t.categories?.name || "Uncategorized"
           } | Date: ${t.occurred_at}`
       )
       .join("\n");
@@ -919,8 +918,8 @@ CRITICAL MANDATORY RULES:
       } else {
         await recordAndSend(
           `✏️ *Transaction Updated Successfully!*\n\n` +
-            `Target: ₹${targetTx.amount} ("${targetTx.note || targetTx.receiver_vendor || "N/A"}")\n` +
-            `Updated Fields: ${updateMsgParts.join(", ")}`
+          `Target: ₹${targetTx.amount} ("${targetTx.note || targetTx.receiver_vendor || "N/A"}")\n` +
+          `Updated Fields: ${updateMsgParts.join(", ")}`
         );
       }
       return NextResponse.json({ status: "ok" });
@@ -1071,7 +1070,7 @@ CRITICAL MANDATORY RULES:
         const symbol = action === "create" ? "✅" : action === "delete" ? "🗑️" : "✏️";
         await recordAndSend(
           `${symbol} *${results.length} Category(ies) ${action === "create" ? "Created" : action === "delete" ? "Deleted" : "Updated"} Successfully!*\n\n` +
-            results.join("\n")
+          results.join("\n")
         );
       } else {
         await recordAndSend(`⚠️ No categories were modified.`);
@@ -1092,10 +1091,10 @@ CRITICAL MANDATORY RULES:
           const symbol = latest.type === "income" ? "📈" : "💸";
           await recordAndSend(
             `📌 *Latest Transaction Details*\n\n` +
-              `${symbol} *Amount:* ₹${latest.amount}\n` +
-              `📝 *Note:* ${latest.note || latest.receiver_vendor || "N/A"}\n` +
-              `🏷️ *Category:* ${latest.categories?.name || "Uncategorized"}\n` +
-              `📅 *Date:* ${new Date(latest.occurred_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
+            `${symbol} *Amount:* ₹${latest.amount}\n` +
+            `📝 *Note:* ${latest.note || latest.receiver_vendor || "N/A"}\n` +
+            `🏷️ *Category:* ${latest.categories?.name || "Uncategorized"}\n` +
+            `📅 *Date:* ${new Date(latest.occurred_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`
           );
         }
         return NextResponse.json({ status: "ok" });
@@ -1179,8 +1178,8 @@ CRITICAL MANDATORY RULES:
         filtered.forEach((t) => (totalAmt += Number(t.amount || 0)));
         await recordAndSend(
           `🔢 *Transaction Count Query*\n\n` +
-            `Found *${filtered.length}* transaction(s)${catLabel}${tfLabel}.\n` +
-            `💸 *Total Amount:* ₹${totalAmt.toLocaleString("en-IN")}`
+          `Found *${filtered.length}* transaction(s)${catLabel}${tfLabel}.\n` +
+          `💸 *Total Amount:* ₹${totalAmt.toLocaleString("en-IN")}`
         );
         return NextResponse.json({ status: "ok" });
       }
@@ -1228,10 +1227,10 @@ CRITICAL MANDATORY RULES:
 
       await recordAndSend(
         `📊 *Expense Analytics (${label})*\n\n` +
-          `💸 *Total Expenses:* ₹${totalExpense.toLocaleString("en-IN")}\n` +
-          `📈 *Total Income:* ₹${totalIncome.toLocaleString("en-IN")}\n` +
-          `💰 *Net Savings:* ₹${(totalIncome - totalExpense).toLocaleString("en-IN")}\n\n` +
-          `🏷️ *Category Breakdown:*\n${catBreakdown || "  ▫️ No expenses recorded."}`
+        `💸 *Total Expenses:* ₹${totalExpense.toLocaleString("en-IN")}\n` +
+        `📈 *Total Income:* ₹${totalIncome.toLocaleString("en-IN")}\n` +
+        `💰 *Net Savings:* ₹${(totalIncome - totalExpense).toLocaleString("en-IN")}\n\n` +
+        `🏷️ *Category Breakdown:*\n${catBreakdown || "  ▫️ No expenses recorded."}`
       );
 
       return NextResponse.json({ status: "ok" });
@@ -1264,10 +1263,10 @@ CRITICAL MANDATORY RULES:
         const catName = lastTx.categories?.name || "Uncategorized";
         await recordAndSend(
           `↩️ *Undo Successful!*\n\n` +
-            `Deleted last logged transaction:\n` +
-            `• Amount: ₹${lastTx.amount}\n` +
-            `• Note: "${lastTx.note || lastTx.receiver_vendor || "N/A"}"\n` +
-            `• Category: ${catName}`
+          `Deleted last logged transaction:\n` +
+          `• Amount: ₹${lastTx.amount}\n` +
+          `• Note: "${lastTx.note || lastTx.receiver_vendor || "N/A"}"\n` +
+          `• Category: ${catName}`
         );
       }
       return NextResponse.json({ status: "ok" });
