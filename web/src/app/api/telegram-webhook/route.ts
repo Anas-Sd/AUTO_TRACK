@@ -309,6 +309,67 @@ const GEMINI_TOOLS = [
   },
 ];
 
+function normalizeCat(s?: string): string {
+  return (s || "").toLowerCase().replace(/[\s_\-]+/g, "").trim();
+}
+
+function getLevenshteinDistance(a: string, b: string): number {
+  const an = a ? a.length : 0;
+  const bn = b ? b.length : 0;
+  if (an === 0) return bn;
+  if (bn === 0) return an;
+  const matrix: number[][] = Array.from({ length: bn + 1 }, () => new Array(an + 1));
+  for (let i = 0; i <= an; ++i) matrix[0][i] = i;
+  for (let i = 0; i <= bn; ++i) matrix[i][0] = i;
+  for (let i = 1; i <= bn; ++i) {
+    for (let j = 1; j <= an; ++j) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+        );
+      }
+    }
+  }
+  return matrix[bn][an];
+}
+
+function findCloseCategory(
+  input: string,
+  categoriesList: Array<{ id: string; name: string }>
+): { type: "exact" | "fuzzy"; category: { id: string; name: string }; distance: number; similarity: number } | null {
+  const normInput = normalizeCat(input);
+  if (!normInput) return null;
+
+  // 1. Exact normalized match (e.g. clg sep 26 == CLG_SEP_26)
+  const exact = categoriesList.find((c) => normalizeCat(c.name) === normInput);
+  if (exact) return { type: "exact", category: exact, distance: 0, similarity: 1 };
+
+  // 2. Fuzzy / typo match
+  let bestMatch: { category: { id: string; name: string }; distance: number; similarity: number } | null = null;
+  let minDistance = 999;
+
+  for (const c of categoriesList) {
+    const normC = normalizeCat(c.name);
+    const dist = getLevenshteinDistance(normInput, normC);
+    const maxLen = Math.max(normInput.length, normC.length);
+    const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
+
+    if ((dist <= 2 || similarity >= 0.75) && dist < minDistance) {
+      minDistance = dist;
+      bestMatch = { category: c, distance: dist, similarity };
+    }
+  }
+
+  if (bestMatch && (bestMatch.distance <= 2 || bestMatch.similarity >= 0.75)) {
+    return { type: "fuzzy", ...bestMatch };
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -339,12 +400,14 @@ export async function POST(req: Request) {
       .replace(/^\/(LINK|SWITCH|LOGIN|VAULT|START)\s*/i, "")
       .trim();
 
-    const isLinkCommand =
-      userMessage.startsWith("/link") ||
-      userMessage.startsWith("/switch") ||
-      !userMapping;
+    const isExplicitLink = userMessage.startsWith("/link") || userMessage.startsWith("/switch");
+    const isSingleWord = !potentialCode.includes(" ") && !userMessage.includes(" ");
+    const isPreLinkGreeting = ["HI", "HELLO", "HEY", "HELP", "START", "/START", "/HELP"].includes(potentialCode);
+    const isLinkAttempt =
+      isExplicitLink ||
+      (!userMapping && isSingleWord && !isPreLinkGreeting && potentialCode.length >= 3 && potentialCode.length <= 25);
 
-    if (isLinkCommand && potentialCode.length >= 4 && potentialCode.length <= 20) {
+    if (isLinkAttempt) {
       const { data: matchedVault } = await supabase
         .from("vault_codes")
         .select("code, label")
@@ -383,25 +446,45 @@ export async function POST(req: Request) {
           `• *"Give me monthly expenses of this month"*`
         );
         return NextResponse.json({ status: "ok" });
-      } else if (userMessage.startsWith("/link") || userMessage.startsWith("/switch")) {
-        await sendTelegramMessage(
-          chatId,
-          `❌ *Invalid Vault Code*\n\n` +
-          `The Vault Code you entered was not found in AutoTrack. Please check your vault code from the Web App and try again.`
-        );
+      } else {
+        // Vault code not found - look for closest match in vault_codes table
+        const { data: allVaults } = await supabase.from("vault_codes").select("code, label");
+        let suggestion: string | null = null;
+        let minDistance = 999;
+
+        for (const v of allVaults || []) {
+          const dist = getLevenshteinDistance(potentialCode, (v.code || "").toUpperCase());
+          if (dist <= 2 && dist < minDistance) {
+            minDistance = dist;
+            suggestion = v.code;
+          }
+        }
+
+        let errText = `❌ *Invalid Vault Code: "${potentialCode}"*\n\n`;
+        if (suggestion) {
+          errText += `💡 *Did you mean: \`${suggestion}\`?*\n\n`;
+        }
+        errText += `The Vault Code you entered was not found in AutoTrack. Please check your vault code from the Web App settings and try again.`;
+
+        await sendTelegramMessage(chatId, errText);
         return NextResponse.json({ status: "ok" });
       }
     }
 
     // If user is NOT linked and didn't provide a valid vault code:
     if (!userMapping) {
-      await sendTelegramMessage(
-        chatId,
-        `🔒 *Welcome to AutoTrack!*\n\n` +
-        `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
-        `*(Example: \`ABCD1234\`)*\n` +
-        `*(Once connected, your Vault Code will be permanently hidden and secured).*`
-      );
+      const isIntro = isPreLinkGreeting || userMessage.startsWith("/");
+      const promptMsg = isIntro
+        ? `🔒 *Welcome to AutoTrack!*\n\n` +
+          `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
+          `*(Example: \`ABCD1234\`)*\n` +
+          `*(Once connected, your Vault Code will be permanently hidden and secured).*`
+        : `🔒 *Please Link Your Vault First*\n\n` +
+          `To track transactions, AutoTrack needs to know which personal vault to save them to.\n\n` +
+          `Please send your **Vault Code** (e.g. \`ABCD1234\`) to connect your ledger!\n` +
+          `*(Once connected, your Vault Code will be permanently hidden and secured).*`;
+
+      await sendTelegramMessage(chatId, promptMsg);
       return NextResponse.json({ status: "ok" });
     }
 
@@ -646,67 +729,6 @@ CRITICAL MANDATORY RULES:
     }
 
     const { name, args } = functionCall;
-
-    function normalizeCat(s?: string): string {
-      return (s || "").toLowerCase().replace(/[\s_\-]+/g, "").trim();
-    }
-
-    function getLevenshteinDistance(a: string, b: string): number {
-      const an = a ? a.length : 0;
-      const bn = b ? b.length : 0;
-      if (an === 0) return bn;
-      if (bn === 0) return an;
-      const matrix: number[][] = Array.from({ length: bn + 1 }, () => new Array(an + 1));
-      for (let i = 0; i <= an; ++i) matrix[0][i] = i;
-      for (let i = 0; i <= bn; ++i) matrix[i][0] = i;
-      for (let i = 1; i <= bn; ++i) {
-        for (let j = 1; j <= an; ++j) {
-          if (b.charAt(i - 1) === a.charAt(j - 1)) {
-            matrix[i][j] = matrix[i - 1][j - 1];
-          } else {
-            matrix[i][j] = Math.min(
-              matrix[i - 1][j - 1] + 1,
-              Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
-            );
-          }
-        }
-      }
-      return matrix[bn][an];
-    }
-
-    function findCloseCategory(
-      input: string,
-      categoriesList: Array<{ id: string; name: string }>
-    ): { type: "exact" | "fuzzy"; category: { id: string; name: string }; distance: number; similarity: number } | null {
-      const normInput = normalizeCat(input);
-      if (!normInput) return null;
-
-      // 1. Exact normalized match (e.g. clg sep 26 == CLG_SEP_26)
-      const exact = categoriesList.find((c) => normalizeCat(c.name) === normInput);
-      if (exact) return { type: "exact", category: exact, distance: 0, similarity: 1 };
-
-      // 2. Fuzzy / typo match
-      let bestMatch: { category: { id: string; name: string }; distance: number; similarity: number } | null = null;
-      let minDistance = 999;
-
-      for (const c of categoriesList) {
-        const normC = normalizeCat(c.name);
-        const dist = getLevenshteinDistance(normInput, normC);
-        const maxLen = Math.max(normInput.length, normC.length);
-        const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
-
-        if ((dist <= 2 || similarity >= 0.75) && dist < minDistance) {
-          minDistance = dist;
-          bestMatch = { category: c, distance: dist, similarity };
-        }
-      }
-
-      if (bestMatch && (bestMatch.distance <= 2 || bestMatch.similarity >= 0.75)) {
-        return { type: "fuzzy", ...bestMatch };
-      }
-
-      return null;
-    }
 
     function getCategoryEmoji(name: string): string {
       const q = name.toLowerCase().trim();
