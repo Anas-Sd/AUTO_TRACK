@@ -296,7 +296,7 @@ const GEMINI_TOOLS = [
       },
       {
         name: "ask_user_clarification",
-        description: "Ask the user a clarifying question when crucial parameters like amount, note, or category are missing or ambiguous.",
+        description: "Ask the user a clarifying question when crucial parameters like amount, note, or category are missing, ambiguous, or when a suspected category typo / misspelling is detected.",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -397,34 +397,45 @@ CRITICAL MANDATORY RULES:
    Every transaction MUST have 3 mandatory fields:
    a) Amount (numeric value e.g. 149)
    b) Note / Description (e.g. "petrol", "ice cream")
-   c) Category (e.g. "college", "food")
+   c) Category (e.g. "CLG_SEP_26", "food")
    If ANY of these 3 fields is missing when user asks to add a transaction (for example, "add petrol under college" which is missing the amount, or "add 100 under food" which is missing the note), YOU MUST NOT CALL 'add_transactions'! Instead, call 'ask_user_clarification' to ask for the specific missing field!
 
 2. CONVERSATION HISTORY & FOLLOW-UP ANSWERS:
    Pay strict attention to the conversation history provided.
-   If you previously asked the user for a missing field (e.g. "Could you please specify the amount for the petrol transaction?") and the user replies with a number or text (e.g. "149" or "149 rs"), treat "149" as the missing amount for that pending petrol transaction under college, and call 'add_transactions' with amount: 149, note: "petrol", category_name: "college"!
+   a) Missing field follow-up: If you previously asked the user for a missing field (e.g. "Could you please specify the amount for the petrol transaction?") and the user replies with a number or text (e.g. "149" or "149 rs"), treat "149" as the missing amount for that pending petrol transaction under college, and call 'add_transactions' with amount: 149, note: "petrol", category_name: "college"!
+   b) Category typo confirmation follow-up: If you previously asked the user to clarify a suspected category typo (e.g. asking if they meant existing category 'CLG_SEP_26' instead of 'CLG_SEPP_26') and the user confirms (e.g. "yes", "clg_sep_26", "existing", "first one", or mentions the original item): execute 'add_transactions' with the pending transaction details under the confirmed existing category ("CLG_SEP_26")! If user says "no, create new" or insists on the new one, call 'add_transactions' creating that new category!
 
-3. TRANSACTION TYPE DEFAULT (EXPENSE VS INCOME):
+3. CATEGORY MATCHING & TYPO DETECTION:
+   Always compare user-provided category names against the "Available Categories in Vault":
+   - Case & Separator Insensitive: If user typed "clg_sep_26" or "clg sep 26" or "CLG SEP 26", this is an exact match for "CLG_SEP_26". Map it directly to "CLG_SEP_26" without asking!
+   - Suspected Typo or Close Misspelling:
+     If the user typed a category that looks like a misspelling, accidental typo, extra/missing letter, or very close variation of an existing category (e.g. "CLG_SEPP_26" vs "CLG_SEP_26", "FUNTION_SEP_26" vs "FUNCTION_SEP_26", "FRINDS" vs "FRIENDS", "colleg" vs "CLG_SEP_26"):
+     DO NOT call 'add_transactions' immediately and DO NOT create a new category!
+     Instead, call 'ask_user_clarification' with a polite question:
+     "I noticed you typed category \"{typed}\". Did you mean the existing category \"{closeMatch}\", or did you actually intend to create a brand new category \"{typed}\"?"
+   - Truly New Category: If the category is completely distinct and not a typo of any existing one (e.g. "GROCERIES", "TRAVEL"), proceed with 'add_transactions'.
+
+4. TRANSACTION TYPE DEFAULT (EXPENSE VS INCOME):
    Default transaction type is ALWAYS "expense"!
    Phrases like "100 for frnd 1", "50 rs for tea", "paid 200", "bought book", "100 for petrol" are ALL EXPENSES (type: "expense")!
    Choose type "income" ONLY if user explicitly says "income", "received", "got", "salary", "cashback", "credit", or "deposit"!
 
-4. PAYMENT METHOD DEFAULT:
+5. PAYMENT METHOD DEFAULT:
    Default payment method is "UPI" unless the user explicitly states "Cash".
 
-5. ADDING TRANSACTIONS:
-   - When all 3 fields are present, choose 'add_transactions'. Auto-create category if it does not exist yet.
+6. ADDING TRANSACTIONS:
+   - When all 3 fields are present and category is verified/distinct, choose 'add_transactions'.
 
-6. UPDATING TRANSACTIONS:
+7. UPDATING TRANSACTIONS:
    - When user asks to edit/update a transaction, choose 'update_transaction'. DO NOT choose delete_transaction!
 
-7. DELETING TRANSACTIONS:
+8. DELETING TRANSACTIONS:
    - Choose 'delete_transaction' ONLY when explicitly asked to delete/remove a transaction log.
 
-8. MANAGING CATEGORIES:
+9. MANAGING CATEGORIES:
    - Choose 'manage_categories' to create, rename, or delete categories.
 
-9. QUERYING ANALYTICS:
+10. QUERYING ANALYTICS:
    - Choose 'query_overview_analytics' for totals, category lists, transaction counts, or transaction lists.`;
 
     // Build multi-turn contents payload
@@ -524,12 +535,76 @@ CRITICAL MANDATORY RULES:
     const functionCall = candidate?.content?.parts?.find((p: any) => p.functionCall)?.functionCall;
 
     if (!functionCall) {
-      const textReply = candidate?.content?.parts?.[0]?.text || "I'm sorry, I couldn't understand that request.";
+      const textReply =
+        candidate?.content?.parts?.find((p: any) => p.text && !p.thought)?.text ||
+        candidate?.content?.parts?.find((p: any) => p.text)?.text ||
+        "I'm sorry, I couldn't understand that request.";
       await recordAndSend(textReply);
       return NextResponse.json({ status: "ok" });
     }
 
     const { name, args } = functionCall;
+
+    function normalizeCat(s?: string): string {
+      return (s || "").toLowerCase().replace(/[\s_\-]+/g, "").trim();
+    }
+
+    function getLevenshteinDistance(a: string, b: string): number {
+      const an = a ? a.length : 0;
+      const bn = b ? b.length : 0;
+      if (an === 0) return bn;
+      if (bn === 0) return an;
+      const matrix: number[][] = Array.from({ length: bn + 1 }, () => new Array(an + 1));
+      for (let i = 0; i <= an; ++i) matrix[0][i] = i;
+      for (let i = 0; i <= bn; ++i) matrix[i][0] = i;
+      for (let i = 1; i <= bn; ++i) {
+        for (let j = 1; j <= an; ++j) {
+          if (b.charAt(i - 1) === a.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+            );
+          }
+        }
+      }
+      return matrix[bn][an];
+    }
+
+    function findCloseCategory(
+      input: string,
+      categoriesList: Array<{ id: string; name: string }>
+    ): { type: "exact" | "fuzzy"; category: { id: string; name: string }; distance: number; similarity: number } | null {
+      const normInput = normalizeCat(input);
+      if (!normInput) return null;
+
+      // 1. Exact normalized match (e.g. clg sep 26 == CLG_SEP_26)
+      const exact = categoriesList.find((c) => normalizeCat(c.name) === normInput);
+      if (exact) return { type: "exact", category: exact, distance: 0, similarity: 1 };
+
+      // 2. Fuzzy / typo match
+      let bestMatch: { category: { id: string; name: string }; distance: number; similarity: number } | null = null;
+      let minDistance = 999;
+
+      for (const c of categoriesList) {
+        const normC = normalizeCat(c.name);
+        const dist = getLevenshteinDistance(normInput, normC);
+        const maxLen = Math.max(normInput.length, normC.length);
+        const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
+
+        if ((dist <= 2 || similarity >= 0.75) && dist < minDistance) {
+          minDistance = dist;
+          bestMatch = { category: c, distance: dist, similarity };
+        }
+      }
+
+      if (bestMatch && (bestMatch.distance <= 2 || bestMatch.similarity >= 0.75)) {
+        return { type: "fuzzy", ...bestMatch };
+      }
+
+      return null;
+    }
 
     function getCategoryEmoji(name: string): string {
       const q = name.toLowerCase().trim();
@@ -550,14 +625,16 @@ CRITICAL MANDATORY RULES:
       categoryName?: string
     ): Promise<{ id: string | null; name: string; isNew: boolean }> {
       if (!categoryName) return { id: null, name: "Uncategorized", isNew: false };
-      const q = categoryName.toLowerCase().trim();
+      const q = categoryName.trim();
+      const normQ = normalizeCat(q);
 
-      const existing = (categories || []).find(
-        (c) => c.name.toLowerCase().trim() === q || c.name.toLowerCase().includes(q)
+      // Check normalized exact match first (e.g. clg sep 26 vs CLG_SEP_26)
+      const exact = (categories || []).find(
+        (c) => normalizeCat(c.name) === normQ || c.name.toLowerCase().trim() === q.toLowerCase()
       );
 
-      if (existing) {
-        return { id: existing.id, name: existing.name, isNew: false };
+      if (exact) {
+        return { id: exact.id, name: exact.name, isNew: false };
       }
 
       // Auto-create missing category in Supabase with smart emoji icon
@@ -565,8 +642,8 @@ CRITICAL MANDATORY RULES:
         .from("categories")
         .insert({
           vault_code: DEFAULT_VAULT_CODE,
-          name: categoryName.trim(),
-          icon: getCategoryEmoji(categoryName),
+          name: q,
+          icon: getCategoryEmoji(q),
           color: "#3B82F6",
         })
         .select()
@@ -582,7 +659,7 @@ CRITICAL MANDATORY RULES:
         .from("categories")
         .select("id, name")
         .eq("vault_code", DEFAULT_VAULT_CODE)
-        .ilike("name", categoryName.trim())
+        .ilike("name", q)
         .maybeSingle();
 
       if (fallbackCat) {
@@ -590,7 +667,7 @@ CRITICAL MANDATORY RULES:
         return { id: fallbackCat.id, name: fallbackCat.name, isNew: false };
       }
 
-      return { id: null, name: categoryName, isNew: false };
+      return { id: null, name: q, isNew: false };
     }
 
     // --- TOOL EXECUTION SWITCH ---
@@ -607,6 +684,25 @@ CRITICAL MANDATORY RULES:
       if (items.length === 0) {
         await recordAndSend(`⚠️ No transactions were specified.`);
         return NextResponse.json({ status: "ok" });
+      }
+
+      // Guardrail: Detect suspected typos in category names and ask user confirmation first
+      const lastBotMessage = chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].parts[0]?.text || "" : "";
+      const alreadyClarifyingCategory =
+        lastBotMessage.includes("Did you mean") ||
+        lastBotMessage.includes("typo") ||
+        lastBotMessage.includes("brand new category");
+
+      if (!alreadyClarifyingCategory) {
+        for (const item of items) {
+          if (!item.category_name) continue;
+          const match = findCloseCategory(item.category_name, categories || []);
+          if (match && match.type === "fuzzy") {
+            const question = `🤔 I noticed you entered category \`${item.category_name}\`.\n\nDid you mean the existing category *${match.category.name}*, or did you actually want to create a new category *${item.category_name}*?`;
+            await recordAndSend(question);
+            return NextResponse.json({ status: "ok" });
+          }
+        }
       }
 
       const addedResults: string[] = [];
