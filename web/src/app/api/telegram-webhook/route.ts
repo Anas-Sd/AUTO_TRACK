@@ -462,13 +462,13 @@ export async function POST(req: Request) {
       const isIntro = isPreLinkGreeting || userMessage.startsWith("/");
       const promptMsg = isIntro
         ? `🔒 *Welcome to AutoTrack!*\n\n` +
-          `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
-          `*(Example: \`ABCD1234\`)*\n` +
-          `*(Once connected, your Vault Code will be permanently hidden and secured).*`
+        `To begin tracking your finances, please enter your **Vault Code** to link your personal ledger.\n\n` +
+        `*(Example: \`ABCD1234\`)*\n` +
+        `*(Once connected, your Vault Code will be permanently hidden and secured).*`
         : `🔒 *Please Link Your Vault First*\n\n` +
-          `To track transactions, AutoTrack needs to know which personal vault to save them to.\n\n` +
-          `Please send your **Vault Code** (e.g. \`ABCD1234\`) to connect your ledger!\n` +
-          `*(Once connected, your Vault Code will be permanently hidden and secured).*`;
+        `To track transactions, AutoTrack needs to know which personal vault to save them to.\n\n` +
+        `Please send your **Vault Code** (e.g. \`ABCD1234\`) to connect your ledger!\n` +
+        `*(Once connected, your Vault Code will be permanently hidden and secured).*`;
 
       await sendTelegramMessage(chatId, promptMsg);
       return NextResponse.json({ status: "ok" });
@@ -841,7 +841,7 @@ CRITICAL MANDATORY RULES:
 
         if (!insertErr && inserted) {
           const isIncome = txType === "income";
-          const typeLabel = isIncome ? "📈 *Income:*" : "💸 *Expense:*";
+          const typeLabel = isIncome ? "🟢 *Income:*" : "🔴 *Expense:*";
           const noteLabel = item.note ? ` for "${item.note}"` : "";
 
           let catStatus = "";
@@ -1096,7 +1096,7 @@ CRITICAL MANDATORY RULES:
         if (!latest) {
           await recordAndSend(`ℹ️ No transactions recorded yet in your ledger.`);
         } else {
-          const symbol = latest.type === "income" ? "📈" : "💸";
+          const symbol = latest.type === "income" ? "🟢" : "🔴";
           await recordAndSend(
             `📌 *Latest Transaction Details*\n\n` +
             `${symbol} *Amount:* ₹${latest.amount}\n` +
@@ -1201,7 +1201,7 @@ CRITICAL MANDATORY RULES:
         } else {
           const rows = filtered
             .map((t, idx) => {
-              const symbol = t.type === "income" ? "📈" : "💸";
+              const symbol = t.type === "income" ? "🟢" : "🔴";
               return `[${idx + 1}] ${symbol} *₹${t.amount}* ("${t.note || t.receiver_vendor || "N/A"}") → *${t.categories?.name || "Uncategorized"}* (${t.occurred_at?.substring(0, 10)})`;
             })
             .join("\n");
@@ -1235,8 +1235,8 @@ CRITICAL MANDATORY RULES:
 
       await recordAndSend(
         `📊 *Expense Analytics (${label})*\n\n` +
-        `💸 *Total Expenses:* ₹${totalExpense.toLocaleString("en-IN")}\n` +
-        `📈 *Total Income:* ₹${totalIncome.toLocaleString("en-IN")}\n` +
+        `🔴 *Total Expenses:* ₹${totalExpense.toLocaleString("en-IN")}\n` +
+        `🟢 *Total Income:* ₹${totalIncome.toLocaleString("en-IN")}\n` +
         `💰 *Net Savings:* ₹${(totalIncome - totalExpense).toLocaleString("en-IN")}\n\n` +
         `🏷️ *Category Breakdown:*\n${catBreakdown || "  ▫️ No expenses recorded."}`
       );
