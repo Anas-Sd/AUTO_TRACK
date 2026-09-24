@@ -447,26 +447,12 @@ export async function POST(req: Request) {
         );
         return NextResponse.json({ status: "ok" });
       } else {
-        // Vault code not found - look for closest match in vault_codes table
-        const { data: allVaults } = await supabase.from("vault_codes").select("code, label");
-        let suggestion: string | null = null;
-        let minDistance = 999;
-
-        for (const v of allVaults || []) {
-          const dist = getLevenshteinDistance(potentialCode, (v.code || "").toUpperCase());
-          if (dist <= 2 && dist < minDistance) {
-            minDistance = dist;
-            suggestion = v.code;
-          }
-        }
-
-        let errText = `❌ *Invalid Vault Code: "${potentialCode}"*\n\n`;
-        if (suggestion) {
-          errText += `💡 *Did you mean: \`${suggestion}\`?*\n\n`;
-        }
-        errText += `The Vault Code you entered was not found in AutoTrack. Please check your vault code from the Web App settings and try again.`;
-
-        await sendTelegramMessage(chatId, errText);
+        // Vault code not found - NEVER suggest or leak actual vault codes for security and privacy
+        await sendTelegramMessage(
+          chatId,
+          `❌ *Invalid Vault Code*\n\n` +
+          `The Vault Code you entered was not found in AutoTrack. Please check your personal vault code from the Web App and try again.`
+        );
         return NextResponse.json({ status: "ok" });
       }
     }
