@@ -50,7 +50,24 @@ export async function GET(req: Request) {
 
     const supabase = getServiceSupabase();
 
-    // Fetch all connected Telegram users from the categories table
+    // 1. Fetch all active and verified vault codes in the system
+    const { data: verifiedVaults, error: vaultErr } = await supabase
+      .from("vault_codes")
+      .select("code, label");
+
+    if (vaultErr) {
+      console.error("Failed to query verified vault codes:", vaultErr);
+      return NextResponse.json({ error: vaultErr.message }, { status: 500 });
+    }
+
+    const verifiedVaultMap = new Map<string, string>();
+    for (const v of verifiedVaults || []) {
+      if (v.code) {
+        verifiedVaultMap.set(v.code.toUpperCase(), v.label || "");
+      }
+    }
+
+    // 2. Fetch all Telegram links from the categories table
     const { data: connectedUsers, error } = await supabase
       .from("categories")
       .select("name, color, vault_code, icon")
@@ -72,8 +89,16 @@ export async function GET(req: Request) {
     const seenChatIds = new Set<string>();
 
     for (const record of connectedUsers) {
+      const userVaultCode = (record.vault_code || "").toUpperCase();
+
+      // STRICT VERIFICATION CHECK: Only send to users whose vault code is active & verified in vault_codes
+      if (!userVaultCode || !verifiedVaultMap.has(userVaultCode)) {
+        console.log(`Skipping unverified user mapping: ${record.name} (vault_code: ${record.vault_code})`);
+        continue;
+      }
+
       let chatId = record.name.replace(/^_TG_/i, "").trim();
-      let userName = record.color || "Friend";
+      let userName = verifiedVaultMap.get(userVaultCode) || record.color || "Friend";
 
       if (record.icon) {
         try {
