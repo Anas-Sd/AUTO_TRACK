@@ -547,9 +547,15 @@ export async function POST(req: Request) {
     // Retrieve conversation history memory for active vault
     const chatHistory = await getChatMemory(supabase, activeVaultCode);
 
+    // Always compute IST (UTC+5:30) time to pass to Gemini and for analytics filters
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const nowISTIso = nowIST.toISOString().replace("Z", "+05:30");
+    const todayISTStr = nowIST.toISOString().substring(0, 10); // YYYY-MM-DD in IST
+
     const systemPrompt = `You are the AutoTrack AI Assistant for personal finance ledger management.
 You are assisting user: "${userName}".
-Current Date & Time: ${new Date().toISOString()}.
+Current Date & Time (IST, Asia/Kolkata): ${nowISTIso}.
+IMPORTANT: ALL dates and occurred_at values MUST use Indian Standard Time (IST = UTC+5:30). The user is in India. When saving a transaction "today" or "now", use the IST date above, NOT UTC. For occurred_at, always emit an ISO string that reflects IST date (e.g. "2026-10-08T21:00:00+05:30").
 
 PRIVACY & IDENTITY MANDATE:
 - The user's name is "${userName}".
@@ -1142,7 +1148,7 @@ CRITICAL MANDATORY RULES:
       }
 
       let filtered = allTx;
-      const now = new Date();
+      const now = nowIST; // Use IST-based time for correct India date filtering
 
       if (category_name) {
         const qCat = category_name.toLowerCase().trim();
@@ -1169,11 +1175,16 @@ CRITICAL MANDATORY RULES:
       }
 
       if (timeframe === "today") {
-        const todayStr = now.toISOString().substring(0, 10);
-        filtered = filtered.filter((t) => t.occurred_at?.substring(0, 10) === todayStr);
+        filtered = filtered.filter((t) => {
+          // Compare IST date of transaction against today's IST date
+          const txDateIST = new Date(new Date(t.occurred_at).getTime() + 5.5 * 60 * 60 * 1000)
+            .toISOString()
+            .substring(0, 10);
+          return txDateIST === todayISTStr;
+        });
       } else if (timeframe === "this_month") {
         filtered = filtered.filter((t) => {
-          const d = new Date(t.occurred_at);
+          const d = new Date(new Date(t.occurred_at).getTime() + 5.5 * 60 * 60 * 1000);
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         });
       }
@@ -1296,14 +1307,18 @@ CRITICAL MANDATORY RULES:
       }
 
       let filtered = allTx;
-      const now = new Date();
+      const now = nowIST; // Use IST-based time for correct India date filtering
 
       if (timeframe === "today") {
-        const todayStr = now.toISOString().substring(0, 10);
-        filtered = allTx.filter((t) => t.occurred_at?.substring(0, 10) === todayStr);
+        filtered = allTx.filter((t) => {
+          const txDateIST = new Date(new Date(t.occurred_at).getTime() + 5.5 * 60 * 60 * 1000)
+            .toISOString()
+            .substring(0, 10);
+          return txDateIST === todayISTStr;
+        });
       } else if (timeframe === "this_month") {
         filtered = allTx.filter((t) => {
-          const d = new Date(t.occurred_at);
+          const d = new Date(new Date(t.occurred_at).getTime() + 5.5 * 60 * 60 * 1000);
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         });
       }
