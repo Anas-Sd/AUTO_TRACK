@@ -54,6 +54,15 @@ function MainDashboard() {
     }
   }, [searchParams, setActiveTab]);
 
+  // Handle ?action=log shortcut — auto-open transaction modal (used by Android shortcut card)
+  useEffect(() => {
+    const action = searchParams.get("action");
+    if (action === "log" && vaultCode && token && !hasAutoOpenedLog) {
+      setIsLogModalOpen(true);
+      setHasAutoOpenedLog(true);
+    }
+  }, [searchParams, vaultCode, token, hasAutoOpenedLog, setIsLogModalOpen]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0B0F17] flex flex-col items-center justify-center text-slate-400 gap-3">

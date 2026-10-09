@@ -1,0 +1,56 @@
+{
+  "name": "AutoTrack",
+  "short_name": "AutoTrack",
+  "description": "Smart personal finance tracker — log expenses, track categories, and view your ledger instantly.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F17",
+  "theme_color": "#10B981",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Log Expense",
+      "short_name": "Log",
+      "description": "Quickly add a new expense or income transaction",
+      "url": "/?action=log",
+      "icons": [{ "src": "/icons/shortcut-log.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "View Ledger",
+      "short_name": "Ledger",
+      "description": "Open the full transaction ledger",
+      "url": "/?tab=ledger",
+      "icons": [{ "src": "/icons/shortcut-ledger.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Overview",
+      "short_name": "Overview",
+      "description": "See your spending overview and category totals",
+      "url": "/?tab=overview",
+      "icons": [{ "src": "/icons/shortcut-overview.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Categories",
+      "short_name": "Categories",
+      "description": "Manage your expense categories",
+      "url": "/?tab=categories",
+      "icons": [{ "src": "/icons/shortcut-categories.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}
