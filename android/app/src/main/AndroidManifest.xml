@@ -51,12 +51,20 @@
             android:exported="false"
             android:theme="@style/Theme.AutoTrack" />
 
-        <!-- Quick Log Floating Activity for Key Mapper & Deep Links -->
+        <!-- Quick Log Floating Activity for Key Mapper, Deep Links & Default Digital Assistant -->
         <activity
             android:name=".QuickLogActivity"
             android:exported="true"
             android:theme="@style/Theme.AutoTrack.Translucent"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask">
+            <!-- Digital Assistant standard intent -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -69,6 +77,33 @@
             </intent-filter>
         </activity>
 
+        <!-- Digital Assistant Voice Interaction Service (enables AutoTrack in Default Apps > Digital Assistant) -->
+        <service
+            android:name=".assistant.AutoTrackVoiceInteractionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".assistant.AutoTrackVoiceInteractionSessionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true" />
+
+        <service
+            android:name=".assistant.AutoTrackRecognitionService"
+            android:permission="android.permission.BIND_RECOGNITION_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>
