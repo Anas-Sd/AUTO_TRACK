@@ -108,8 +108,10 @@ export default function OverviewTab() {
     const usedColors = new Set<string>();
 
     // Populate categories with distinct colors
-    categories.forEach((c, idx) => {
-      let color = c.color;
+    categories
+      .filter((c) => !c.name.startsWith("_"))
+      .forEach((c, idx) => {
+        let color = c.color;
       if (!color || usedColors.has(color) || (color === "#10B981" && idx > 0)) {
         color = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
       }

@@ -51,6 +51,16 @@ export default function CustomSelect({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const formatIcon = (ico?: React.ReactNode | string) => {
+    if (!ico) return null;
+    if (typeof ico === "string") {
+      if (ico.startsWith("{") || ico.startsWith("[") || ico.length > 4) {
+        return "🏷️";
+      }
+    }
+    return ico;
+  };
+
   return (
     <div ref={containerRef} className={`relative inline-block ${className} ${isOpen ? "z-50" : "z-10"}`}>
       {/* Trigger Button */}
@@ -65,7 +75,7 @@ export default function CustomSelect({
           {icon && <span className="shrink-0">{icon}</span>}
           {selectedOption ? (
             <span className="flex items-center gap-1.5 truncate">
-              {selectedOption.icon && <span className="shrink-0">{selectedOption.icon}</span>}
+              {selectedOption.icon && <span className="shrink-0">{formatIcon(selectedOption.icon)}</span>}
               <span className="truncate">{selectedOption.label}</span>
             </span>
           ) : (
@@ -101,7 +111,7 @@ export default function CustomSelect({
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
-                    {opt.icon && <span className="shrink-0">{opt.icon}</span>}
+                    {opt.icon && <span className="shrink-0">{formatIcon(opt.icon)}</span>}
                     <span className="truncate">{opt.label}</span>
                   </div>
                   {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-1.5" />}

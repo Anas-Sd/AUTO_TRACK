@@ -204,7 +204,7 @@ object DataSyncManager {
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 val catName = obj.optString("name", "Category")
-                if (catName == "_BOT_MEMORY_") continue
+                if (catName.startsWith("_")) continue
                 val rawIcon = obj.optString("icon", "🏷️")
                 val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4) "🏷️" else rawIcon
                 list.add(

@@ -66,7 +66,9 @@ export async function GET(req: Request) {
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-      return NextResponse.json({ data: categories || [] });
+      // Filter out internal system categories (e.g. _BOT_MEMORY_, _TG_*)
+      const userCategories = (categories || []).filter((c) => !c.name.startsWith("_"));
+      return NextResponse.json({ data: userCategories });
     } else if (type === "transactions") {
       let { data: transactions, error } = await supabase
         .from("transactions")

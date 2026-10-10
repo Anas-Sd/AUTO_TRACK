@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await logoutVault();
         return;
       }
-      const catData: Category[] = catJson.data || [];
+      const catData: Category[] = (catJson.data || []).filter((c: Category) => !c.name.startsWith("_"));
       const catsHash = JSON.stringify(catData);
       if (catsHash !== prevCatsRef.current) {
         prevCatsRef.current = catData.length ? catsHash : "";

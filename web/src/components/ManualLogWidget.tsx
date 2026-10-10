@@ -55,7 +55,7 @@ export default function ManualLogWidget({
   const [receiverVendor, setReceiverVendor] = useState("");
   const [amount, setAmount] = useState("");
   const [level1Error, setLevel1Error] = useState<string | null>(null);
-  const [errorField, setErrorField] = useState<"toFrom" | "amount" | null>(null);
+  const [errorField, setErrorField] = useState<"toFrom" | "amount" | "note" | null>(null);
 
   // Level 2 State
   const [categoryId, setCategoryId] = useState<string>("");
@@ -96,6 +96,11 @@ export default function ManualLogWidget({
       setLevel1Error("Please enter a valid amount");
       return;
     }
+    if (!note.trim()) {
+      setErrorField("note");
+      setLevel1Error("Notes / Description is required");
+      return;
+    }
     setErrorField(null);
     setLevel1Error(null);
     setLevel(2);
@@ -108,6 +113,12 @@ export default function ManualLogWidget({
     if (isNaN(num) || num <= 0) {
       setErrorField("amount");
       setLevel1Error("Please enter amount");
+      setLevel(1);
+      return;
+    }
+    if (!note.trim()) {
+      setErrorField("note");
+      setLevel1Error("Notes / Description is required");
       setLevel(1);
       return;
     }
@@ -267,17 +278,36 @@ export default function ManualLogWidget({
             </div>
           </div>
 
-          {/* Row 3: Notes / Description */}
+          {/* Row 3: Notes / Description (Required) */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1 flex items-center gap-1">
-              <FileText className="w-3 h-3 text-emerald-400" /> Notes / Description (Optional)
+            <label className="block text-[11px] font-medium text-slate-300 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <FileText className="w-3 h-3 text-emerald-400" /> Notes / Description <span className="text-rose-400 font-bold">*</span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">Required</span>
             </label>
             <input
               type="text"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                setNote(e.target.value);
+                if (errorField === "note") {
+                  setErrorField(null);
+                  setLevel1Error(null);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleContinue();
+                }
+              }}
               placeholder="e.g. Tea, Grocery, Salary..."
-              className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3 py-2 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+              className={`w-full bg-[#0B0F17] border rounded-xl px-3 py-2 text-white text-xs placeholder:text-slate-500 focus:outline-none transition ${
+                errorField === "note"
+                  ? "border-rose-500 text-rose-400 focus:border-rose-500"
+                  : "border-[#1E293B] focus:border-emerald-500"
+              }`}
             />
           </div>
 
@@ -337,11 +367,13 @@ export default function ManualLogWidget({
               className="w-full text-xs"
               options={[
                 { value: "", label: "Uncategorized", icon: "📦" },
-                ...categories.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                  icon: c.icon || "🏷️",
-                })),
+                ...categories
+                  .filter((c) => !c.name.startsWith("_"))
+                  .map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    icon: (c.icon && !c.icon.startsWith("[") && !c.icon.startsWith("{") && c.icon.length <= 4) ? c.icon : "🏷️",
+                  })),
               ]}
             />
           </div>
@@ -377,15 +409,21 @@ export default function ManualLogWidget({
             </div>
           </div>
 
-          {/* Notes (Optional) */}
+          {/* Notes (Required) */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-300 mb-1 flex items-center gap-1">
-              <FileText className="w-3 h-3 text-emerald-400" /> Notes (Optional)
+            <label className="block text-[11px] font-medium text-slate-300 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <FileText className="w-3 h-3 text-emerald-400" /> Notes / Description <span className="text-rose-400 font-bold">*</span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">Required</span>
             </label>
             <input
               type="text"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                setNote(e.target.value);
+                if (saveError) setSaveError(null);
+              }}
               placeholder="e.g. Tea with friends, Grocery..."
               className="w-full bg-[#0B0F17] border border-[#1E293B] rounded-xl px-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
             />

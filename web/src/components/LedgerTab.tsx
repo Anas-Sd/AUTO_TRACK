@@ -481,11 +481,13 @@ export default function LedgerTab() {
                 className="w-full"
                 options={[
                   { value: "all", label: "All Categories" },
-                  ...categories.map((c) => ({
-                    value: c.id,
-                    label: c.name,
-                    icon: c.icon || "🏷️",
-                  })),
+                  ...categories
+                    .filter((c) => !c.name.startsWith("_"))
+                    .map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                      icon: (c.icon && !c.icon.startsWith("[") && !c.icon.startsWith("{") && c.icon.length <= 4) ? c.icon : "🏷️",
+                    })),
                   { value: "uncategorized", label: "Uncategorized", icon: "📦" },
                 ]}
               />

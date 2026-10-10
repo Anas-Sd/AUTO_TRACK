@@ -35,7 +35,7 @@ export default function CategoriesTab() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const visibleCategories = useMemo(() => {
-    return categories.filter((cat) => cat.name !== "_BOT_MEMORY_");
+    return categories.filter((cat) => !cat.name.startsWith("_"));
   }, [categories]);
 
   const sortedCategories = useMemo(() => {

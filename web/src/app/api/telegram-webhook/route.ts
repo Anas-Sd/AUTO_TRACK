@@ -179,6 +179,7 @@ const GEMINI_TOOLS = [
                   amount: { type: "NUMBER", description: "Transaction amount in INR" },
                   note: { type: "STRING", description: "Note, description, or vendor (e.g. petrol, ice cream, salary)" },
                   category_name: { type: "STRING", description: "Category name. If category doesn't exist, it will be created." },
+                  category_emoji: { type: "STRING", description: "A single appropriate emoji for the category if creating a new one (e.g. 🎬, 📺, 🛒, 🎓, 🍕, 🚗, 🏷️)" },
                   type: { type: "STRING", enum: ["expense", "income"], description: "Transaction type. Default is 'expense'. Choose 'income' only if explicitly stated as income, salary, or received money." },
                   payment_method: { type: "STRING", description: "UPI (default) or Cash" },
                   occurred_at: { type: "STRING", description: "ISO date string or relative date if specified" },
@@ -235,6 +236,7 @@ const GEMINI_TOOLS = [
                 properties: {
                   name: { type: "STRING", description: "Target or new category name" },
                   new_name: { type: "STRING", description: "New name if renaming" },
+                  emoji: { type: "STRING", description: "A single appropriate emoji for this category (e.g. 🎬, 📺, 🛒, 🎓, 🍕, 🚗, 🏷️)" },
                   monthly_cap: { type: "NUMBER", description: "Monthly budget cap amount" },
                 },
                 required: ["name"],
@@ -484,14 +486,38 @@ export async function POST(req: Request) {
         `👤 *${userName}*\n\n` +
         `Connected as *${userName}*.\n` +
         `Your vault is active, private, and secured.\n\n` +
-        `To switch to a different vault, send: \`/switch <NEW_VAULT_CODE>\``
+        `To switch to a different vault, send: \`/switch <NEW_VAULT_CODE>\`\n` +
+        `To log out and unlink this bot, send: \`/logout\``
       );
       return NextResponse.json({ status: "ok" });
     }
 
-    // Handle /start or pure greeting commands directly
     const lowerUserMsg = userMessage.toLowerCase().trim();
     const cleanMsg = lowerUserMsg.replace(/[!.,?]+$/, "").trim();
+
+    // Handle /logout or /unlink command
+    const isLogoutIntent =
+      userMessage.startsWith("/logout") ||
+      userMessage.startsWith("/unlink") ||
+      cleanMsg === "logout" ||
+      cleanMsg === "unlink" ||
+      /^log\s*out\b/i.test(cleanMsg) ||
+      /^un\s*link\b/i.test(cleanMsg) ||
+      cleanMsg.includes("log out from the telegram") ||
+      cleanMsg.includes("logout from telegram") ||
+      cleanMsg.includes("log out from telegram");
+
+    if (isLogoutIntent) {
+      await supabase.from("categories").delete().eq("name", "_TG_" + chatId);
+      await sendTelegramMessage(
+        chatId,
+        `👤 *${userName}*\n\n` +
+        `🔓 *Logged Out Successfully!*\n\n` +
+        `Your Telegram chat has been unlinked from **${userName}**'s vault.\n\n` +
+        `To log in again or connect another vault, simply send your **Vault Code** (e.g. \`ABCD1234\`).`
+      );
+      return NextResponse.json({ status: "ok" });
+    }
     const hasCommandKeywords = /\b(add|log|record|spend|spent|paid|received|delete|remove|update|change|create|list|export|show|what|whats|how|much|rs|inr|₹)\b/i.test(cleanMsg);
     const isGreeting =
       !hasCommandKeywords &&
@@ -722,23 +748,63 @@ CRITICAL MANDATORY RULES:
 
     const { name, args } = functionCall;
 
-    function getCategoryEmoji(name: string): string {
+    function getCategoryEmoji(name: string, suggestedEmoji?: string): string {
+      if (suggestedEmoji && suggestedEmoji.trim()) {
+        const s = suggestedEmoji.trim();
+        // Accept valid single emoji (up to 4 chars / code points, not alphanumeric ascii)
+        if (s.length <= 4 && !/^[a-zA-Z0-9\s_]+$/.test(s)) {
+          return s;
+        }
+      }
       const q = name.toLowerCase().trim();
-      if (/college|school|education|study|book|exam|fees/i.test(q)) return "🎓";
-      if (/car|vehicle|petrol|diesel|fuel|travel|cab|auto|ride/i.test(q)) return "🚗";
-      if (/food|restaurant|dining|snacks|hotel|pizza|burger|tea|coffee/i.test(q)) return "🍕";
-      if (/checking|bank|salary|income|money|cash|deposit|savings/i.test(q)) return "💰";
-      if (/shopping|clothes|fashion|mall|store|buy/i.test(q)) return "🛒";
-      if (/home|rent|flat|house|electricity|utility|bill/i.test(q)) return "🏠";
-      if (/health|medicine|doctor|hospital|pharma/i.test(q)) return "💊";
-      if (/movie|entertainment|game|play|fun|sports/i.test(q)) return "🎬";
-      if (/donation|charity|beggar|gift/i.test(q)) return "🎁";
+      // College, School & Education
+      if (/college|clg|school|education|study|book|books|exam|fees|tuition|course|class/i.test(q)) return "🎓";
+      // Commute, Vehicles & Fuel
+      if (/car|vehicle|petrol|diesel|fuel|cng|travel|cab|auto|ride|uber|ola|rapido|bus|train|metro|flight|air|ticket|toll|parking|trip/i.test(q)) return "🚗";
+      // Food, Dining, Drinks & Tea
+      if (/tea|chai|coffee|cafe/i.test(q)) return "☕";
+      if (/food|restaurant|dining|snacks|hotel|mess|pizza|burger|biryani|samosa|lunch|dinner|breakfast|bakery|swiggy|zomato/i.test(q)) return "🍕";
+      // Groceries & Provisions
+      if (/grocery|groceries|supermarket|mart|dmart|ration|vegetable|vegetables|sabji|fruit|fruits|milk|curd|bread|egg|eggs|meat|chicken|kirana/i.test(q)) return "🛒";
+      // Web Series, OTT, Movies & Entertainment
+      if (/web\s*series|series|netflix|prime|hotstar|youtube|spotify|music|ott|streaming|tv|show/i.test(q)) return "📺";
+      if (/movie|movies|cinema|theatre|film|entertainment|game|gaming|sports|concert/i.test(q)) return "🎬";
+      // Friends & Social Sharing
+      if (/friend|friends|frnd|frnds|bro|party|treat|adjustment|split|lend|borrow/i.test(q)) return "👥";
+      // Phone, Recharge & Internet
+      if (/recharge|mobile|phone|sim|wifi|internet|broadband|airtel|jio|vi/i.test(q)) return "📱";
+      // Utilities & Bills
+      if (/electricity|power|current|bill|bills|utility/i.test(q)) return "⚡";
+      if (/water|gas|cylinder/i.test(q)) return "💧";
+      // Housing & Rent
+      if (/home|rent|flat|house|pg|room|maintenance|furniture/i.test(q)) return "🏠";
+      // Health, Medical & Fitness
+      if (/health|medicine|medical|doctor|hospital|clinic|pharma|pharmacy/i.test(q)) return "💊";
+      if (/gym|fitness|workout|protein/i.test(q)) return "🏋️";
+      // Personal Care & Salon
+      if (/salon|haircut|parlour|spa|grooming|beauty|cosmetics/i.test(q)) return "💇";
+      // Shopping & Fashion
+      if (/shopping|clothes|cloth|dress|shoes|fashion|mall|store|buy|purchase|amazon|flipkart|myntra/i.test(q)) return "🛍️";
+      // Salary, Income & Banking
+      if (/salary|income|money|cash|deposit|savings|checking|bank|cashback|bonus|stipend|refund/i.test(q)) return "💰";
+      // Investments
+      if (/investment|stocks|stock|share|shares|crypto|mutual\s*fund/i.test(q)) return "📈";
+      // Gifts & Charity
+      if (/donation|charity|beggar|gift|temple|mosque|church|pooja/i.test(q)) return "🎁";
+      // Pets
+      if (/pet|pets|dog|cat|vet/i.test(q)) return "🐶";
+      // Books & Stationery
+      if (/stationery|pen|pencil|notes|xerox|print/i.test(q)) return "📚";
+      // Repair & Tools
+      if (/repair|service|mechanic|tools/i.test(q)) return "🔧";
+      // Default clean fallback
       return "🏷️";
     }
 
     // --- HELPER FUNCTION: Find or Auto-Create Category ---
     async function getOrCreateCategory(
-      categoryName?: string
+      categoryName?: string,
+      suggestedEmoji?: string
     ): Promise<{ id: string | null; name: string; isNew: boolean }> {
       if (!categoryName) return { id: null, name: "Uncategorized", isNew: false };
       const q = categoryName.trim();
@@ -759,7 +825,7 @@ CRITICAL MANDATORY RULES:
         .insert({
           vault_code: activeVaultCode,
           name: q,
-          icon: getCategoryEmoji(q),
+          icon: getCategoryEmoji(q, suggestedEmoji),
           color: "#3B82F6",
         })
         .select()
@@ -824,7 +890,7 @@ CRITICAL MANDATORY RULES:
       const addedResults: string[] = [];
 
       for (const item of items) {
-        const { id: catId, name: catName, isNew } = await getOrCreateCategory(item.category_name);
+        const { id: catId, name: catName, isNew } = await getOrCreateCategory(item.category_name, item.category_emoji);
         const method = item.payment_method?.toLowerCase() === "cash" ? "Cash" : "UPI";
         const txType = item.type === "income" ? "income" : "expense";
 
@@ -1011,7 +1077,7 @@ CRITICAL MANDATORY RULES:
             .insert({
               vault_code: activeVaultCode,
               name: item.name.trim(),
-              icon: getCategoryEmoji(item.name),
+              icon: getCategoryEmoji(item.name, item.emoji || item.category_emoji),
               color: "#3B82F6",
               monthly_cap: item.monthly_cap || null,
             })
@@ -1028,6 +1094,7 @@ CRITICAL MANDATORY RULES:
           if (targetCat) {
             const updates: any = {};
             if (item.new_name) updates.name = item.new_name.trim();
+            if (item.emoji || item.category_emoji) updates.icon = getCategoryEmoji(item.new_name || targetCat.name, item.emoji || item.category_emoji);
             if (item.monthly_cap !== undefined) updates.monthly_cap = item.monthly_cap;
 
             const { error } = await supabase
@@ -1047,7 +1114,7 @@ CRITICAL MANDATORY RULES:
               .insert({
                 vault_code: activeVaultCode,
                 name: (item.new_name || item.name).trim(),
-                icon: getCategoryEmoji(item.name),
+                icon: getCategoryEmoji(item.name, item.emoji || item.category_emoji),
                 color: "#3B82F6",
                 monthly_cap: item.monthly_cap || null,
               })
