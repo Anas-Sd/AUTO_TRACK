@@ -22,12 +22,12 @@ class QuickLogActivity : ComponentActivity() {
 
         setContent {
             AutoTrackTheme {
-                var categories by remember { mutableStateOf<List<Category>>(DataSyncManager.getCachedCategoryObjects()) }
+                var categories by remember { mutableStateOf<List<Category>>(DataSyncManager.getCachedCategoryObjects().filter { !it.name.startsWith("_") }) }
                 var latestTx by remember { mutableStateOf<com.autotrack.app.data.TransactionItem?>(null) }
                 val scope = rememberCoroutineScope()
 
                 suspend fun refreshShortcutCategoriesAndData() {
-                    val catList = DataSyncManager.fetchCategoryObjects()
+                    val catList = DataSyncManager.fetchCategoryObjects().filter { !it.name.startsWith("_") }
                     val fetchedLatest = DataSyncManager.fetchLatestTransaction()
 
                     withContext(Dispatchers.Main) {
@@ -47,7 +47,7 @@ class QuickLogActivity : ComponentActivity() {
                     refreshShortcutCategoriesAndData()
 
                     DataSyncManager.dataUpdateFlow.collect {
-                        val updatedCats = DataSyncManager.getCachedCategoryObjects()
+                        val updatedCats = DataSyncManager.getCachedCategoryObjects().filter { !it.name.startsWith("_") }
                         val fetchedLatest = DataSyncManager.fetchLatestTransaction()
                         withContext(Dispatchers.Main) {
                             if (updatedCats.isNotEmpty()) {
@@ -94,7 +94,7 @@ class QuickLogActivity : ComponentActivity() {
                                 if (newId != null) {
                                     Toast.makeText(applicationContext, "Category created successfully!", Toast.LENGTH_SHORT).show()
                                 }
-                                categories = DataSyncManager.getCachedCategoryObjects()
+                                categories = DataSyncManager.getCachedCategoryObjects().filter { !it.name.startsWith("_") }
                             }
                         }
                     },

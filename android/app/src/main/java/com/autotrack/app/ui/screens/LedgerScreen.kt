@@ -148,7 +148,8 @@ fun LedgerScreen(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     val sortedCategoriesForFilter = remember(categories, transactions) {
-        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(categories, transactions)
+        val userCats = categories.filter { !it.name.startsWith("_") }
+        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(userCats, transactions)
     }
 
     LaunchedEffect(

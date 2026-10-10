@@ -75,8 +75,12 @@ fun CategoriesScreen(
         Triple(spent, income, count)
     }
 
-    val sortedCategoriesByRecency = remember(categories, transactions) {
-        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(categories, transactions)
+    val cleanCategories = remember(categories) {
+        categories.filter { !it.name.startsWith("_") }
+    }
+
+    val sortedCategoriesByRecency = remember(cleanCategories, transactions) {
+        com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(cleanCategories, transactions)
     }
 
     val filteredCategories = remember(sortedCategoriesByRecency, searchQuery) {
@@ -158,7 +162,7 @@ fun CategoriesScreen(
         )
 
         // 2. Independent Scrollable Category Cards Container
-        if (categories.isEmpty() && uncategorizedStats.third == 0) {
+        if (cleanCategories.isEmpty() && uncategorizedStats.third == 0) {
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                 Text("No categories available. Tap Add to create one.", fontSize = 12.sp, color = TextMuted)
             }

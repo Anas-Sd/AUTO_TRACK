@@ -275,7 +275,8 @@ fun EditTransactionDialog(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         val sortedCategories = remember(categories, transaction) {
-                            com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(categories, listOf(transaction))
+                            val userCats = categories.filter { !it.name.startsWith("_") }
+                            com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(userCats, listOf(transaction))
                         }
                         val activeCatName = sortedCategories.find { it.id == selectedCategoryId }?.let { "${it.icon} ${it.name}" } ?: "📦 Uncategorized"
 

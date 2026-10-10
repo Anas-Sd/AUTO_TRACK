@@ -53,7 +53,7 @@ fun MainScreen(
     var selectedLedgerCategoryFilter by remember { mutableStateOf<String?>(null) }
 
     var transactions by remember { mutableStateOf<List<TransactionItem>>(emptyList()) }
-    var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<Category>>(DataSyncManager.getCachedCategoryObjects()) }
 
     var vaultCode by remember { mutableStateOf(DataSyncManager.getVaultCode() ?: "VAULT") }
     var profileName by remember { mutableStateOf(DataSyncManager.getProfileName()) }
@@ -83,14 +83,19 @@ fun MainScreen(
                 val res = client.newCall(catReq).execute()
                 if (res.isSuccessful) {
                     val body = res.body?.string() ?: "[]"
+                    DataSyncManager.setCachedCategories(body)
                     val array = JSONArray(body)
                     for (i in 0 until array.length()) {
                         val obj = array.getJSONObject(i)
+                        val catName = obj.optString("name", "Category")
+                        if (catName.startsWith("_")) continue
+                        val rawIcon = obj.optString("icon", "🏷️")
+                        val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4 || rawIcon.startsWith("{") || rawIcon.startsWith("[")) "🏷️" else rawIcon
                         newCats.add(
                             Category(
                                 id = obj.optString("id", ""),
-                                name = obj.optString("name", "Category"),
-                                icon = obj.optString("icon", "🏷️"),
+                                name = catName,
+                                icon = cleanIcon,
                                 color = obj.optString("color", "#10B981"),
                                 monthlyCap = if (obj.has("monthly_cap") && !obj.isNull("monthly_cap")) obj.optDouble("monthly_cap") else null
                             )

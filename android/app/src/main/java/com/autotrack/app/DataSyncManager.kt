@@ -181,10 +181,12 @@ object DataSyncManager {
             val array = JSONArray(raw)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                val id = obj.optString("id", "")
                 val name = obj.optString("name", "Category")
-                val icon = obj.optString("icon", "🏷️")
-                list.add(Pair(id, "$icon $name"))
+                if (name.startsWith("_")) continue
+                val id = obj.optString("id", "")
+                val rawIcon = obj.optString("icon", "🏷️")
+                val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4 || rawIcon.startsWith("{") || rawIcon.startsWith("[")) "🏷️" else rawIcon
+                list.add(Pair(id, "$cleanIcon $name"))
             }
         } catch (e: Exception) {
             // fallback
@@ -194,7 +196,23 @@ object DataSyncManager {
 
     fun setCachedCategories(categoriesJson: String) {
         ensureInit()
-        if (::prefs.isInitialized) prefs.edit().putString(KEY_CACHED_CATEGORIES, categoriesJson).apply()
+        if (!::prefs.isInitialized) return
+        try {
+            val array = JSONArray(categoriesJson)
+            val cleanArray = JSONArray()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val catName = obj.optString("name", "Category")
+                if (catName.startsWith("_")) continue
+                val rawIcon = obj.optString("icon", "🏷️")
+                val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4 || rawIcon.startsWith("{") || rawIcon.startsWith("[")) "🏷️" else rawIcon
+                obj.put("icon", cleanIcon)
+                cleanArray.put(obj)
+            }
+            prefs.edit().putString(KEY_CACHED_CATEGORIES, cleanArray.toString()).apply()
+        } catch (e: Exception) {
+            prefs.edit().putString(KEY_CACHED_CATEGORIES, categoriesJson).apply()
+        }
     }
 
     fun parseCategoriesJson(jsonStr: String): List<com.autotrack.app.data.Category> {
@@ -206,7 +224,7 @@ object DataSyncManager {
                 val catName = obj.optString("name", "Category")
                 if (catName.startsWith("_")) continue
                 val rawIcon = obj.optString("icon", "🏷️")
-                val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4) "🏷️" else rawIcon
+                val cleanIcon = if (rawIcon == "Category" || rawIcon.length > 4 || rawIcon.startsWith("{") || rawIcon.startsWith("[")) "🏷️" else rawIcon
                 list.add(
                     com.autotrack.app.data.Category(
                         id = obj.optString("id", ""),
@@ -231,7 +249,8 @@ object DataSyncManager {
         categories: List<com.autotrack.app.data.Category>,
         transactions: List<com.autotrack.app.data.TransactionItem>
     ): List<com.autotrack.app.data.Category> {
-        if (transactions.isEmpty()) return categories.sortedBy { it.name.lowercase(Locale.ROOT) }
+        val filteredCats = categories.filter { !it.name.startsWith("_") }
+        if (transactions.isEmpty()) return filteredCats.sortedBy { it.name.lowercase(Locale.ROOT) }
 
         val catLastUsedMap = mutableMapOf<String, Int>()
         transactions.forEachIndexed { index, tx ->
@@ -241,7 +260,7 @@ object DataSyncManager {
             }
         }
 
-        return categories.sortedWith(Comparator { c1, c2 ->
+        return filteredCats.sortedWith(Comparator { c1, c2 ->
             val idx1 = catLastUsedMap[c1.id]
             val idx2 = catLastUsedMap[c2.id]
             when {

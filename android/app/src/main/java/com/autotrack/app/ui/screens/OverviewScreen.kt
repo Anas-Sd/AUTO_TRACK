@@ -162,8 +162,9 @@ fun OverviewScreen(
             }
         }
 
-        map.map { (catId, pair) ->
+        map.mapNotNull { (catId, pair) ->
             val catObj = categories.find { it.id == catId }
+            if (catObj?.name?.startsWith("_") == true) return@mapNotNull null
             val name = catObj?.name ?: if (catId == "uncategorized") "Uncategorized" else "Category"
             val icon = catObj?.icon ?: "🏷️"
             val openingCap = catObj?.monthlyCap

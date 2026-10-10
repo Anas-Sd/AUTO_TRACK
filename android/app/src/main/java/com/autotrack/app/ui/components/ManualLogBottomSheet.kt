@@ -156,8 +156,9 @@ fun ManualLogBottomSheet(
     var pendingAutoSelectCatName by remember { mutableStateOf<String?>(null) }
 
     val sortedCategories = remember(categories, latestTransaction) {
+        val userCats = categories.filter { !it.name.startsWith("_") }
         com.autotrack.app.DataSyncManager.getSortedCategoriesByRecency(
-            categories,
+            userCats,
             if (latestTransaction != null) listOf(latestTransaction) else emptyList()
         )
     }
