@@ -65,6 +65,23 @@ export default function ManualLogWidget({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState(false);
+  const [toastMsg, setToastMsg] = useState("Transaction saved successfully!");
+  const [newlyCreatedCatId, setNewlyCreatedCatId] = useState<string | null>(null);
+
+  // Sort categories by latest added first (created_at descending, pinning newly created in session to top)
+  const sortedCategories = React.useMemo(() => {
+    const list = categories.filter((c) => !c.name.startsWith("_"));
+    return [...list].sort((a, b) => {
+      if (newlyCreatedCatId) {
+        if (a.id === newlyCreatedCatId) return -1;
+        if (b.id === newlyCreatedCatId) return 1;
+      }
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      return a.name.localeCompare(b.name);
+    });
+  }, [categories, newlyCreatedCatId]);
 
   // Inline Category Modal State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -106,9 +123,8 @@ export default function ManualLogWidget({
     setLevel(2);
   };
 
-  // Handle Level 2 Save
-  const handleSaveTransaction = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handle Save (Continue to add another speedy transaction or Save & Close)
+  const executeSave = async (isContinue: boolean) => {
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) {
       setErrorField("amount");
@@ -150,29 +166,50 @@ export default function ManualLogWidget({
     setIsSaving(false);
 
     if (result) {
-      if (onClose) {
-        onClose();
-      } else {
-        // Reset form to Level 1
+      if (isContinue) {
+        // Fast Continuous Logging: Save & immediately reset for next transaction without closing modal
         setAmount("");
-        setType("expense");
-        setCategoryId("");
-        setPaymentMethod("UPI");
         setNote("");
+        setReceiverVendor("");
+        setOccurredAt(toDatetimeLocal(new Date().toISOString()));
         setLevel1Error(null);
+        setErrorField(null);
         setLevel(1);
+        setToastMsg("Logged! Add next transaction...");
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 2500);
+      } else {
+        if (onClose) {
+          onClose();
+        } else {
+          setAmount("");
+          setNote("");
+          setReceiverVendor("");
+          setCategoryId("");
+          setPaymentMethod("UPI");
+          setLevel1Error(null);
+          setErrorField(null);
+          setLevel(1);
+          setToastMsg("Transaction saved successfully!");
+          setSuccessToast(true);
+          setTimeout(() => setSuccessToast(false), 2500);
+        }
       }
     } else {
       setSaveError("Failed to save. Please try again.");
     }
   };
 
-  // Inline Category Creation Callback (auto-selects newly created category)
+  const handleSaveTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeSave(false);
+  };
+
+  // Inline Category Creation Callback (auto-selects newly created category and moves to top)
   const handleCategorySave = async (catData: any) => {
     const created = await addCategory(catData);
     if (created && created.id) {
+      setNewlyCreatedCatId(created.id);
       setCategoryId(created.id);
       setIsCategoryModalOpen(false);
     }
@@ -185,7 +222,7 @@ export default function ManualLogWidget({
       {successToast && (
         <div className="mb-2 p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-medium flex items-center justify-between animate-in fade-in duration-150">
           <span className="flex items-center gap-1.5">
-            <Check className="w-4 h-4 text-emerald-400" /> Transaction saved successfully!
+            <Check className="w-4 h-4 text-emerald-400" /> {toastMsg}
           </span>
           <span className="text-[10px] text-slate-400">Synced</span>
         </div>
@@ -360,13 +397,14 @@ export default function ManualLogWidget({
               className="w-full text-xs"
               options={[
                 { value: "", label: "Uncategorized", icon: "📦" },
-                ...categories
-                  .filter((c) => !c.name.startsWith("_"))
-                  .map((c) => ({
-                    value: c.id,
-                    label: c.name,
-                    icon: (c.icon && !c.icon.startsWith("[") && !c.icon.startsWith("{") && c.icon.length <= 4) ? c.icon : "🏷️",
-                  })),
+                ...sortedCategories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  icon:
+                    c.icon && !c.icon.startsWith("[") && !c.icon.startsWith("{") && c.icon.length <= 4
+                      ? c.icon
+                      : "🏷️",
+                })),
               ]}
             />
           </div>
@@ -421,12 +459,12 @@ export default function ManualLogWidget({
             </p>
           )}
 
-          {/* Action Row: Back, Cancel, and Save Transaction */}
+          {/* Action Row: Back, Cancel, Continue +, and Save Transaction */}
           <div className="flex items-center gap-2 pt-1 border-t border-[#1E293B]">
             <button
               type="button"
               onClick={() => setLevel(1)}
-              className="px-3 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
+              className="px-2.5 sm:px-3 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" /> Back
             </button>
@@ -434,26 +472,44 @@ export default function ManualLogWidget({
             <button
               type="button"
               onClick={() => {
-                setAmount("");
-                setType("expense");
-                setCategoryId("");
-                setPaymentMethod("UPI");
-                setNote("");
-                setLevel1Error(null);
-                setLevel(1);
+                if (onClose) {
+                  onClose();
+                } else {
+                  setAmount("");
+                  setType("expense");
+                  setCategoryId("");
+                  setPaymentMethod("UPI");
+                  setNote("");
+                  setLevel1Error(null);
+                  setLevel(1);
+                }
               }}
-              className="px-3 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-400 hover:text-slate-200 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
+              className="px-2.5 sm:px-3 py-2 rounded-xl bg-[#0B0F17] hover:bg-[#1E293B] border border-[#1E293B] text-slate-400 hover:text-slate-200 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
             >
               <X className="w-3.5 h-3.5" /> Cancel
             </button>
 
+            {/* Continue Button (Save & Add Next Transaction Speedily) */}
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => executeSave(true)}
+              className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shadow-sm disabled:opacity-50"
+              title="Save transaction and immediately add another"
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              <span>Continue +</span>
+            </button>
+
+            {/* Save Button (Save & Close) */}
             <button
               type="submit"
               disabled={isSaving}
               className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1 shadow-sm disabled:opacity-50"
+              title="Save transaction and finish"
             >
               {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              <span>Save Transaction</span>
+              <span>Save ✔</span>
             </button>
           </div>
         </form>
