@@ -27,10 +27,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.autotrack.app.DataSyncManager
 import com.autotrack.app.data.Category
 import com.autotrack.app.data.TransactionItem
 import com.autotrack.app.ui.components.EditTransactionDialog
+import com.autotrack.app.ui.components.ExportFormat
+import com.autotrack.app.ui.components.ExportLedgerDialog
 import com.autotrack.app.ui.theme.*
+import com.autotrack.app.utils.LedgerExporter
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -62,6 +66,7 @@ fun LedgerScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isFilterExpanded by remember { mutableStateOf(false) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
+    var isExportDialogOpen by remember { mutableStateOf(false) }
 
     var selectedTimeframe by remember { mutableStateOf("All Time") } // "All Time", "Today", "This Month", "By Month", "Custom"
     var selectedMonth by remember { mutableStateOf("") } // e.g. "2026-09"
@@ -238,39 +243,6 @@ fun LedgerScreen(
         }
     }
 
-    // Export CSV Function
-    fun exportLedgerToCSV() {
-        try {
-            val fileName = "AutoTrack_Ledger_${System.currentTimeMillis()}.csv"
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val csvFile = File(downloadsDir, fileName)
-
-            FileWriter(csvFile).use { writer ->
-                writer.append("ID,Date,Time,Type,Category,Amount(INR),PaymentMethod,Vendor,Note\n")
-                filteredTransactions.forEach { item ->
-                    val catObj = categories.find { c -> c.id == item.categoryId }
-                    val catName = catObj?.name ?: "Uncategorized"
-                    val datePart = item.occurredAt.take(10)
-                    val timePart = if (item.occurredAt.length >= 19) item.occurredAt.substring(11, 19) else ""
-                    writer.append("\"${item.id}\",\"$datePart\",\"$timePart\",\"${item.type}\",\"$catName\",${item.amount},\"${item.sourceApp}\",\"${item.receiverVendor ?: ""}\",\"${item.note ?: ""}\"\n")
-                }
-            }
-
-            Toast.makeText(context, "Exported ${filteredTransactions.size} items to Downloads/$fileName", Toast.LENGTH_LONG).show()
-
-            // Open Share Intent
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_SUBJECT, "AutoTrack Ledger Export")
-                putExtra(Intent.EXTRA_TEXT, "Exported ${filteredTransactions.size} transactions from AutoTrack.")
-            }
-            context.startActivity(Intent.createChooser(shareIntent, "Share Ledger CSV"))
-
-        } catch (e: Exception) {
-            Toast.makeText(context, "Failed to export: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -409,15 +381,15 @@ fun LedgerScreen(
                 }
             }
 
-            // Download CSV Icon Button
+            // Export Transactions (CSV or Searchable PDF) Button
             IconButton(
-                onClick = { exportLedgerToCSV() },
+                onClick = { isExportDialogOpen = true },
                 modifier = Modifier
                     .size(40.dp)
                     .background(CardBg, RoundedCornerShape(12.dp))
                     .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
             ) {
-                Icon(Icons.Default.Download, contentDescription = "Download CSV", tint = EmeraldPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Download, contentDescription = "Export Ledger", tint = EmeraldPrimary, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -826,4 +798,22 @@ fun LedgerScreen(
             }
         )
     }
+
+    // Export Ledger Dialog (Custom File Name + CSV / Searchable PDF)
+    ExportLedgerDialog(
+        isOpen = isExportDialogOpen,
+        transactionCount = filteredTransactions.size,
+        onDismiss = { isExportDialogOpen = false },
+        onConfirmExport = { fileName, format ->
+            val vault = DataSyncManager.getVaultCode() ?: ""
+            LedgerExporter.export(
+                context = context,
+                items = filteredTransactions,
+                categories = categories,
+                baseName = fileName,
+                format = format,
+                vaultCode = vault
+            )
+        }
+    )
 }

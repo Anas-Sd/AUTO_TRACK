@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/authContext";
 import { Transaction } from "@/lib/types";
 import ConfirmModal from "./ConfirmModal";
 import CustomSelect from "./CustomSelect";
+import ExportModal from "./ExportModal";
 import {
   Search,
   Filter,
@@ -34,9 +35,11 @@ export default function LedgerTab() {
     setIsLogModalOpen,
     ledgerCategoryFilter,
     setLedgerCategoryFilter,
+    vaultLabel,
   } = useAuth();
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
@@ -245,46 +248,112 @@ export default function LedgerTab() {
     return { filteredIncome: inc, filteredExpense: exp };
   }, [filteredTransactions]);
 
-  // CSV Export Handler
-  const handleExportCSV = () => {
-    const headers = [
-      "ID",
-      "Date",
-      "Type",
-      "Amount (INR)",
-      "Vendor / Receiver",
-      "Category",
-      "Source App",
-      "Note",
-    ];
+  // Export Handler (CSV or Searchable PDF)
+  const handleExport = async (fileName: string, format: "csv" | "pdf") => {
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const todayDate = nowIST.toISOString().slice(0, 10);
+    const cleanName = fileName.trim().replace(/[\\/:*?"<>|\s]+/g, "_") || "AutoTrack_Ledger";
+    const finalFileName = `${cleanName}_${todayDate}`;
 
     const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
-    const rows = filteredTransactions.map((t) => [
-      `"${t.id}"`,
-      `"${new Date(t.occurred_at).toLocaleString("en-IN")}"`,
-      `"${t.type.toUpperCase()}"`,
-      t.amount,
-      `"${(t.receiver_vendor || "").replace(/"/g, '""')}"`,
-      `"${(t.category_id ? categoryMap.get(t.category_id) || "Uncategorized" : "Uncategorized").replace(/"/g, '""')}"`,
-      `"${(t.source_app || "").replace(/"/g, '""')}"`,
-      `"${(t.note || "").replace(/"/g, '""')}"`,
-    ]);
+    if (format === "csv") {
+      const headers = [
+        "ID",
+        "Date",
+        "Type",
+        "Amount (INR)",
+        "Vendor / Receiver",
+        "Category",
+        "Source App",
+        "Note",
+      ];
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      const rows = filteredTransactions.map((t) => [
+        `"${t.id}"`,
+        `"${new Date(t.occurred_at).toLocaleString("en-IN")}"`,
+        `"${t.type.toUpperCase()}"`,
+        t.amount,
+        `"${(t.receiver_vendor || "").replace(/"/g, '""')}"`,
+        `"${(t.category_id ? categoryMap.get(t.category_id) || "Uncategorized" : "Uncategorized").replace(/"/g, '""')}"`,
+        `"${(t.source_app || "").replace(/"/g, '""')}"`,
+        `"${(t.note || "").replace(/"/g, '""')}"`,
+      ]);
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `auto_track_ledger_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `${finalFileName}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      // PDF (Searchable) Export
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+
+      // Title & Header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("AutoTrack Ledger Report", 40, 45);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(`Generated on: ${todayDate} (IST) | Vault: ${vaultLabel || "Personal Vault"}`, 40, 62);
+      doc.text(
+        `Total: ${filteredTransactions.length} txns | Income: Rs. ${filteredIncome.toLocaleString("en-IN")} | Outcome: Rs. ${filteredExpense.toLocaleString("en-IN")}`,
+        40,
+        76
+      );
+
+      const tableRows = filteredTransactions.map((t) => [
+        new Date(t.occurred_at).toLocaleDateString("en-IN") +
+          " " +
+          new Date(t.occurred_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        t.type === "income" ? "INC" : "EXP",
+        t.category_id ? categoryMap.get(t.category_id) || "Uncategorized" : "Uncategorized",
+        t.note || t.receiver_vendor || "-",
+        t.source_app || "UPI",
+        (t.type === "income" ? "+ Rs. " : "- Rs. ") + Number(t.amount).toLocaleString("en-IN"),
+      ]);
+
+      autoTable(doc, {
+        startY: 90,
+        head: [["Date & Time", "Type", "Category", "Note / Vendor", "Mode", "Amount"]],
+        body: tableRows,
+        styles: {
+          font: "helvetica",
+          fontSize: 8,
+          cellPadding: 5,
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [16, 185, 129], // emerald-500
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252], // slate-50
+        },
+        columnStyles: {
+          0: { cellWidth: 95 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 95 },
+          3: { cellWidth: 160 },
+          4: { cellWidth: 45 },
+          5: { cellWidth: 85, halign: "right", fontStyle: "bold" },
+        },
+      });
+
+      doc.save(`${finalFileName}.pdf`);
+    }
   };
 
   const handleEdit = (txn: Transaction) => {
@@ -374,10 +443,10 @@ export default function LedgerTab() {
             </button>
           )}
 
-          {/* CSV Export Button */}
+          {/* Export Button (CSV or Searchable PDF) */}
           <button
-            onClick={handleExportCSV}
-            title="Export filtered transactions as CSV"
+            onClick={() => setIsExportModalOpen(true)}
+            title="Export filtered transactions (CSV / Searchable PDF)"
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#131A26] border border-[#1E293B] hover:bg-[#1E293B] text-slate-300 hover:text-white text-xs font-medium transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
@@ -808,6 +877,14 @@ export default function LedgerTab() {
           }
         }}
         onClose={() => setDeleteConfirmId(null)}
+      />
+
+      {/* Export Ledger Modal (File Name + CSV or Searchable PDF) */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        transactionCount={filteredTransactions.length}
+        onExport={handleExport}
       />
     </div>
   );
