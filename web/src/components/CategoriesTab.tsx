@@ -256,12 +256,9 @@ export default function CategoriesTab() {
             const stats = categoryStats.get(cat.id) || { expense: 0, income: 0, totalVolume: 0 };
             const spent = stats.expense;
             const income = stats.income;
-            const openingBalance = cat.monthly_cap;
-            const hasBalance = openingBalance !== null && openingBalance !== undefined && openingBalance > 0;
-            const currentBalance = hasBalance ? openingBalance + income - spent : 0;
-            const netSpent = spent - income;
-            const percent = hasBalance ? Math.max(0, Math.min(Math.round((netSpent / openingBalance) * 100), 100)) : 0;
-            const isOverBalance = hasBalance && currentBalance < 0;
+            const openingBalance = cat.monthly_cap || 0;
+            const hasBalance = cat.monthly_cap !== null && cat.monthly_cap !== undefined && cat.monthly_cap > 0;
+            const currentBalance = openingBalance + income - spent;
 
             return (
               <div
@@ -340,7 +337,7 @@ export default function CategoriesTab() {
                       <div className="bg-[#0B0F17] p-2 rounded-lg border border-[#1E293B] text-right">
                         <span className="block text-[9px] font-sans text-slate-500 font-bold uppercase">Remaining</span>
                         <span className={`font-bold ${currentBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {currentBalance >= 0 ? "+" : ""}₹{currentBalance.toLocaleString("en-IN")}
+                          {currentBalance >= 0 ? "+" : "-"}₹{Math.abs(currentBalance).toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>

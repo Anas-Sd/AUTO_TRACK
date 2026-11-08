@@ -245,9 +245,9 @@ fun CategoriesScreen(
                     val stats = categoryStats.getOrDefault(cat.id, Pair(0.0, 0.0))
                     val spent = stats.first
                     val income = stats.second
-                    val openingBal = cat.monthlyCap
-                    val hasBalance = openingBal != null && openingBal > 0
-                    val currentBal = if (hasBalance) openingBal!! + income - spent else 0.0
+                    val openingBal = cat.monthlyCap ?: 0.0
+                    val hasBalance = cat.monthlyCap != null && cat.monthlyCap > 0
+                    val currentBal = openingBal + income - spent
 
                     Card(
                         colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -376,12 +376,13 @@ fun CategoriesScreen(
 
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text("REMAINING", fontSize = 9.sp, color = TextMuted, fontWeight = FontWeight.Bold)
+                                    val balInt = currentBal.toInt()
                                     Text(
-                                        text = "₹${currentBal.toInt()}",
+                                        text = if (balInt >= 0) "+₹$balInt" else "-₹${Math.abs(balInt)}",
                                         fontSize = 12.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (hasBalance && currentBal < 0) RoseExpense else EmeraldPrimary
+                                        color = if (currentBal < 0) RoseExpense else EmeraldPrimary
                                     )
                                 }
                             }
