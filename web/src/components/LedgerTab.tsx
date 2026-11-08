@@ -126,6 +126,11 @@ export default function LedgerTab() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [transactions]);
 
+  // Fast Category Map Lookup
+  const categoryMap = useMemo(() => {
+    return new Map(categories.map((c) => [c.id, c.name]));
+  }, [categories]);
+
   // Filtered & Sorted Transactions
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -133,17 +138,33 @@ export default function LedgerTab() {
 
     return transactions
       .filter((t) => {
-        // Search query match
+        // Multi-field search match: Category, Notes, Vendor/Receiver, Amount, Mode, Type, Date
         if (query) {
+          const catName = (t.category_id ? categoryMap.get(t.category_id) || "uncategorized" : "uncategorized").toLowerCase();
+          const matchCategory = catName.includes(query);
           const matchNote = (t.note || "").toLowerCase().includes(query);
           const matchVendor = (t.receiver_vendor || "").toLowerCase().includes(query);
-          if (!matchNote && !matchVendor) return false;
+
+          const rawAmt = String(t.amount);
+          const cleanAmtQuery = query.replace(/[₹\s,]+/g, "").replace(/^rs\.?/i, "").trim();
+          const matchAmount = rawAmt.includes(query) || (cleanAmtQuery.length > 0 && rawAmt.includes(cleanAmtQuery));
+
+          const matchSource = (t.source_app || "").toLowerCase().includes(query);
+          const matchType = (t.type || "").toLowerCase().includes(query) || (t.type === "expense" && query.includes("outcome"));
+
+          const datePart = (t.occurred_at || "").toLowerCase();
+          const localDateStr = new Date(t.occurred_at).toLocaleString("en-IN").toLowerCase();
+          const matchDate = datePart.includes(query) || localDateStr.includes(query);
+
+          if (!matchCategory && !matchNote && !matchVendor && !matchAmount && !matchSource && !matchType && !matchDate) {
+            return false;
+          }
         }
 
         // Category filter
         if (selectedCategory !== "all") {
           if (selectedCategory === "uncategorized") {
-            if (t.category_id) return false;
+            if (t.category_id && t.category_id !== "uncategorized") return false;
           } else if (t.category_id !== selectedCategory) {
             return false;
           }
@@ -383,7 +404,7 @@ export default function LedgerTab() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by vendor, note..."
+            placeholder="Search category, note, amount, mode..."
             className="w-full pl-10 pr-4 py-2 bg-[#131A26] border border-[#1E293B] rounded-xl text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 transition"
           />
         </div>

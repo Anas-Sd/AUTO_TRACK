@@ -191,11 +191,23 @@ fun LedgerScreen(
         val thisMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).apply { timeZone = istZone }.format(Date())
 
         transactions.filter { t ->
-            // Search Query
-            val matchSearch = searchQuery.isBlank() ||
-                (t.receiverVendor?.contains(searchQuery, ignoreCase = true) == true) ||
-                (t.note?.contains(searchQuery, ignoreCase = true) == true) ||
-                t.amount.toString().contains(searchQuery)
+            // Multi-field Search Query (Category, Note, Vendor, Amount, Mode, Type, Date)
+            val catObj = categories.find { c -> c.id == t.categoryId }
+            val catName = catObj?.name ?: "Uncategorized"
+            val cleanQuery = searchQuery.trim()
+            val rawAmt = t.amount.toString()
+            val cleanAmtQuery = cleanQuery.replace(Regex("[₹\\s,]+"), "").replace(Regex("^(?i)rs\\.?"), "").trim()
+
+            val matchSearch = cleanQuery.isBlank() ||
+                (t.receiverVendor?.contains(cleanQuery, ignoreCase = true) == true) ||
+                (t.note?.contains(cleanQuery, ignoreCase = true) == true) ||
+                catName.contains(cleanQuery, ignoreCase = true) ||
+                t.sourceApp.contains(cleanQuery, ignoreCase = true) ||
+                t.type.contains(cleanQuery, ignoreCase = true) ||
+                (t.type == "expense" && cleanQuery.equals("outcome", ignoreCase = true)) ||
+                rawAmt.contains(cleanQuery) ||
+                (cleanAmtQuery.isNotEmpty() && rawAmt.contains(cleanAmtQuery)) ||
+                t.occurredAt.contains(cleanQuery)
 
             // Timeframe Filter
             val matchTimeframe = when (selectedTimeframe) {
@@ -262,7 +274,7 @@ fun LedgerScreen(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("Search vendor, note, or amount...", fontSize = 12.sp, color = TextMuted) },
+            placeholder = { Text("Search category, note, amount, mode...", fontSize = 12.sp, color = TextMuted) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMuted, modifier = Modifier.size(16.dp)) },
             trailingIcon = {
                 if (searchQuery.isNotBlank()) {

@@ -83,6 +83,29 @@ export default function CategoriesTab() {
     return map;
   }, [transactions]);
 
+  // Compute total expense & income for Uncategorized transactions
+  const uncategorizedStats = useMemo(() => {
+    let spent = 0;
+    let income = 0;
+    let count = 0;
+    transactions.forEach((t) => {
+      if (!t.category_id || t.category_id === "uncategorized") {
+        count++;
+        const amt = Number(t.amount) || 0;
+        if (t.type === "income") {
+          income += amt;
+        } else {
+          spent += amt;
+        }
+      }
+    });
+    return { spent, income, count, net: income - spent };
+  }, [transactions]);
+
+  const showUncategorized =
+    uncategorizedStats.count > 0 &&
+    (!searchQuery.trim() || "uncategorized".includes(searchQuery.toLowerCase().trim()));
+
   const handleCreate = () => {
     setEditingCat(null);
     setIsModalOpen(true);
@@ -153,7 +176,7 @@ export default function CategoriesTab() {
 
       {/* Categories Grid Container - Fixed Box with Internal Scroll */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 pb-16 md:pb-4">
-        {filteredCategories.length === 0 ? (
+        {filteredCategories.length === 0 && !showUncategorized ? (
         <div className="bg-[#131A26] border border-[#1E293B] rounded-2xl p-12 text-center">
           <Layers className="w-12 h-12 mx-auto mb-3 opacity-30 text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-300">
@@ -169,6 +192,66 @@ export default function CategoriesTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Uncategorized Card */}
+          {showUncategorized && (
+            <div
+              onClick={() => {
+                setLedgerCategoryFilter("uncategorized");
+                setActiveTab("ledger");
+              }}
+              title="Click to view all Uncategorized transactions in Ledger"
+              className="bg-[#131A26] border border-[#1E293B] hover:border-emerald-500/50 rounded-2xl p-5 transition flex flex-col justify-between group shadow-sm cursor-pointer hover:bg-[#131A26]/80 active:scale-[0.99]"
+            >
+              <div>
+                {/* Top: Icon + Name */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-sm bg-slate-800/80 border border-slate-700/80">
+                      📦
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-1.5 group-hover:text-emerald-400 transition">
+                        Uncategorized
+                      </h4>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        {uncategorizedStats.count} transaction{uncategorizedStats.count === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+                    System
+                  </span>
+                </div>
+
+                {/* Metrics: Income, Outcome, Net */}
+                <div className="mt-4 pt-3 border-t border-[#1E293B] space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">Outcome:</span>
+                    <span className="font-mono font-bold text-rose-400">
+                      -₹{uncategorizedStats.spent.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">Income:</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      +₹{uncategorizedStats.income.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-[#1E293B]/50">
+                    <span className="text-slate-400 font-medium">Net Balance:</span>
+                    <span
+                      className={`font-mono font-bold ${
+                        uncategorizedStats.net >= 0 ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {uncategorizedStats.net >= 0 ? "+" : ""}₹
+                      {uncategorizedStats.net.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {filteredCategories.map((cat) => {
             const stats = categoryStats.get(cat.id) || { expense: 0, income: 0, totalVolume: 0 };
             const spent = stats.expense;
